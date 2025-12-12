@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="h5">Exercises</h2>
+    <form class="d-flex" method="post" action="{{ url_for('web_add_exercise') }}">
+      <input name="name" class="form-control form-control-sm me-2" placeholder="New exercise" required>
+      <input name="target_reps" type="number" class="form-control form-control-sm me-2" value="5" min="1" style="width:80px">
+      <button class="btn btn-sm btn-success" type="submit">Add</button>
+    </form>
+  </div>
+
+  <div class="list-group">
+    {% for ex in exercises %}
+      <div class="list-group-item">
+        <div class="d-flex w-100 justify-content-between">
+          <a href="{{ url_for('exercise_detail', exercise_id=ex.id) }}" class="mb-1 fw-semibold">{{ ex.name }}</a>
+          <form method="post" action="{{ url_for('web_delete_exercise', exercise_id=ex.id) }}" onsubmit="return confirm('Delete {{ ex.name }}?')">
+            <button class="btn btn-sm btn-outline-danger">Delete</button>
+          </form>
+        </div>
+        <small class="text-muted">Target: {{ ex.target_reps }} reps
+          {% if ex.last %}
+            • Last: {{ ex.last.weight }}kg on {{ ex.last.date.split('T')[0] }} • Next: {{ ex.last.next_weight }}kg
+          {% else %}
+            • New
+          {% endif %}
+        </small>
+      </div>
+    {% endfor %}
+  </div>
+
+{% endblock %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Greyskull Tracker">
+    <title>Greyskull Workout Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Greyskull LP</h1>
+            <p class="subtitle">Exercise Tracker</p>
+        </header>
+
+        <main id="app">
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+                <button class="tab-btn active" data-tab="exercises">Exercises</button>
+                <button class="tab-btn" data-tab="history">History</button>
+            </div>
+
+            <!-- Exercises Tab -->
+            <div id="exercises-tab" class="tab-content active">
+                <div id="exercises-list" class="exercises-list"></div>
+                <button id="add-exercise-btn" class="btn btn-primary" style="margin: 16px;">+ Add Exercise</button>
+            </div>
+
+            <!-- History Tab -->
+            <div id="history-tab" class="tab-content">
+                <div id="history-list" class="history-list"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Log Workout Modal -->
+    <div id="log-modal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Exercise Name</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="info-box">
+                    <p><strong>Last Session:</strong> <span id="last-date">Never</span></p>
+                    <p><strong>Last Weight:</strong> <span id="last-weight">-</span> kg</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="weight-input">Weight Lifted (kg)</label>
+                    <input type="number" id="weight-input" placeholder="e.g., 60" step="0.5" min="0">
+                </div>
+
+                <div class="form-group">
+                    <label>Reps on Final Set</label>
+                    <div class="reps-options">
+                        <button class="reps-btn" data-reps="less_than_5">
+                            <span class="reps-number">&lt; 5</span>
+                            <span class="reps-label">Less than 5</span>
+                        </button>
+                        <button class="reps-btn" data-reps="more_than_5">
+                            <span class="reps-number">5+</span>
+                            <span class="reps-label">5 or more</span>
+                        </button>
+                        <button class="reps-btn" data-reps="more_than_10">
+                            <span class="reps-number">10+</span>
+                            <span class="reps-label">10 or more</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="next-weight-suggestion" class="suggestion-box" style="display: none;">
+                    <strong>Next Time:</strong> <span id="next-weight-text"></span> kg
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-btn">Cancel</button>
+                <button class="btn btn-primary" id="save-btn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Exercise Modal -->
+    <div id="add-exercise-modal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Exercise</h2>
+                <button class="close-btn" id="close-add-exercise">&times;</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="exercise-name-input">Exercise Name</label>
+                    <input type="text" id="exercise-name-input" placeholder="e.g., Bench Press">
+                </div>
+
+                <div class="form-group">
+                    <label for="target-reps-input">Target Reps</label>
+                    <input type="number" id="target-reps-input" placeholder="e.g., 5" min="1" max="20" value="5">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-add-btn">Cancel</button>
+                <button class="btn btn-primary" id="add-btn">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <div id="toast" class="toast" aria-live="polite"></div>
+</body>
+</html>
