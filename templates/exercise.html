@@ -6,7 +6,7 @@
   </div>
 
   <h3 class="h5">{{ exercise.name }}</h3>
-  <p class="text-muted">Target reps: {{ exercise.target_reps }}</p>
+
 
   <div class="card mb-3">
     <div class="card-body">
@@ -14,14 +14,14 @@
       <form method="post" action="{{ url_for('web_log_workout', exercise_id=exercise_id) }}">
         <div class="mb-2">
           <label class="form-label">Weight (kg)</label>
-          <input name="weight" type="number" step="0.5" class="form-control" required>
+          <input name="weight" type="number" step="0.5" class="form-control" value="{{ last.next_weight }}" required>
         </div>
 
         <div class="mb-2">
           <label class="form-label">Reps on final set</label>
           <select name="reps_category" class="form-select">
             <option value="less_than_5">&lt; 5 reps</option>
-            <option value="more_than_5">5+ reps</option>
+            <option value="more_than_5" selected>5+ reps</option>
             <option value="more_than_10">10+ reps (AMRAP)</option>
           </select>
         </div>
@@ -48,17 +48,26 @@
 
   <div class="card mt-3">
     <div class="card-body">
-      <h6 class="card-title">Delete Exercise</h6>
-      <a href="{{ url_for('confirm_delete_exercise', exercise_id=exercise_id) }}" class="btn btn-danger" style="width:100%">Delete Exercise</a>
+      <h6 class="card-title">History</h6>
+      <div id="history-container">
+        <p class="text-muted">Loading history...</p>
+      </div>
     </div>
   </div>
 
   <div class="card mt-3">
     <div class="card-body">
-      <h6 class="card-title">History</h6>
-      <div id="history-container">
-        <p class="text-muted">Loading history...</p>
+      <h6 class="card-title">Progress graph</h6>
+      <div>
+        <img src="{{ url_for('exercise_chart', exercise_id=exercise_id) }}" alt="Progress graph" style="max-width:100%;height:auto;border:1px solid #eee" />
       </div>
+    </div>
+  </div>
+
+  <div class="card mt-3">
+    <div class="card-body">
+      <h6 class="card-title">Delete Exercise</h6>
+      <a href="{{ url_for('confirm_delete_exercise', exercise_id=exercise_id) }}" class="btn btn-danger" style="width:100%">Delete Exercise</a>
     </div>
   </div>
 

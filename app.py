@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
 from datetime import datetime
 import json
 import os
@@ -342,6 +342,89 @@ def get_exercise_history(exercise_id):
     workouts = load_workouts()
     exercise_workouts = [w for w in workouts if w['exercise_id'] == exercise_id]
     return jsonify(sorted(exercise_workouts, key=lambda x: x['date'], reverse=True))
+
+
+def _generate_svg_chart(points, width=600, height=200, padding=24):
+    """Generate a simple SVG line chart from list of (datetime, weight) tuples.
+    Points expected in ascending time order."""
+    if not points:
+        return f"""<svg xmlns='http://www.w3.org/2000/svg' width='{width}' height='{height}'>
+            <rect width='100%' height='100%' fill='#fff' />
+            <text x='{width/2}' y='{height/2}' font-size='14' text-anchor='middle' fill='#666'>No data</text>
+        </svg>"""
+
+    # Extract x (datetime) and y (weight)
+    xs = [p[0].timestamp() for p in points]
+    ys = [p[1] for p in points]
+
+    xmin, xmax = min(xs), max(xs)
+    ymin, ymax = min(ys), max(ys)
+    # If all weights equal, create a small range
+    if ymin == ymax:
+        ymin -= 1
+        ymax += 1
+
+    def sx(x):
+        if xmax == xmin:
+            return padding + (width - 2*padding)/2
+        return padding + (x - xmin) / (xmax - xmin) * (width - 2*padding)
+
+    def sy(y):
+        return padding + (1 - (y - ymin) / (ymax - ymin)) * (height - 2*padding)
+
+    # Build polyline points
+    poly_pts = []
+    for dt_ts, y in zip(xs, ys):
+        poly_pts.append(f"{sx(dt_ts):.1f},{sy(y):.1f}")
+
+    # Generate simple axes and labels for first and last
+    first_label = points[0][0].strftime('%Y-%m-%d')
+    last_label = points[-1][0].strftime('%Y-%m-%d')
+
+    svg = [f"<svg xmlns='http://www.w3.org/2000/svg' width='{width}' height='{height}'>"]
+    svg.append("<rect width='100%' height='100%' fill='#ffffff'/>")
+    # grid lines (horizontal)
+    for i in range(5):
+        yv = ymin + i * (ymax - ymin) / 4
+        svg.append(f"<line x1='{padding}' y1='{sy(yv):.1f}' x2='{width-padding}' y2='{sy(yv):.1f}' stroke='#eee' stroke-width='1' />")
+        svg.append(f"<text x='{padding-6}' y='{sy(yv)+4:.1f}' font-size='10' text-anchor='end' fill='#888'>{yv:.1f}</text>")
+
+    # polyline
+    svg.append(f"<polyline fill='none' stroke='#007bff' stroke-width='2' points='{' '.join(poly_pts)}' />")
+    # dots
+    for dt_ts, y in zip(xs, ys):
+        svg.append(f"<circle cx='{sx(dt_ts):.1f}' cy='{sy(y):.1f}' r='3' fill='#007bff' />")
+
+    # x labels
+    svg.append(f"<text x='{padding}' y='{height-padding+16}' font-size='10' fill='#666'>{first_label}</text>")
+    svg.append(f"<text x='{width-padding}' y='{height-padding+16}' font-size='10' text-anchor='end' fill='#666'>{last_label}</text>")
+
+    svg.append('</svg>')
+    return '\n'.join(svg)
+
+
+@app.route('/exercise-chart/<exercise_id>')
+def exercise_chart(exercise_id):
+    """Return an SVG line chart showing weight over time for the exercise."""
+    workouts = load_workouts()
+    # filter and sort ascending by date
+    entries = [w for w in workouts if w.get('exercise_id') == exercise_id]
+    if not entries:
+        svg = _generate_svg_chart([])
+        return Response(svg, mimetype='image/svg+xml')
+
+    # Convert dates and weights
+    pts = []
+    for e in sorted(entries, key=lambda x: x['date']):
+        try:
+            dt = datetime.fromisoformat(e['date'])
+            w = float(e.get('weight', 0))
+            pts.append((dt, w))
+        except Exception:
+            continue
+
+    svg = _generate_svg_chart(pts, width=700, height=220)
+    return Response(svg, mimetype='image/svg+xml')
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

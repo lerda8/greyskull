@@ -1,10 +1,26 @@
 [
   {
-    "exercise_id": "a042ebb3",
-    "exercise_name": "Dips",
+    "exercise_id": "bench",
+    "exercise_name": "Bench Press",
+    "weight": 45.0,
+    "reps_category": "more_than_5",
+    "next_weight": 46.5,
+    "date": "2025-12-12T13:19:47.316201"
+  },
+  {
+    "exercise_id": "7719bd03",
+    "exercise_name": "Lat Pull Downs",
     "weight": 40.0,
-    "reps_category": "more_than_10",
-    "next_weight": 42.5,
-    "date": "2025-12-12T10:08:41.540162"
+    "reps_category": "more_than_5",
+    "next_weight": 41.5,
+    "date": "2025-12-12T13:20:44.145629"
+  },
+  {
+    "exercise_id": "rows",
+    "exercise_name": "Barbell Rows",
+    "weight": 40.0,
+    "reps_category": "more_than_5",
+    "next_weight": 41.5,
+    "date": "2025-12-12T13:21:22.553881"
   }
 ]
