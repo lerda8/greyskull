@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div class="mb-3">
+    <h3 class="h5">Exercises</h3>
+  </div>
+
+  <div>
+    <form method="post" action="{{ url_for('web_add_exercise') }}" class="mb-3">
+      <div style="display:flex;gap:8px;align-items:center">
+        <input name="name" class="form-control" placeholder="New exercise" required style="flex:1;padding:12px;font-size:1rem">
+        <button class="btn btn-success" type="submit" style="padding:10px 14px;font-size:1rem">Add</button>
+      </div>
+    </form>
+
+    {% for ex in exercises %}
+      <a href="{{ url_for('exercise_detail', exercise_id=ex.id) }}" class="card mb-2" style="display:block;padding:12px;text-decoration:none;color:inherit">
+        <div style="font-weight:600;font-size:1.05rem">{{ ex.name }}</div>
+        <div style="color:#666;margin-top:6px;font-size:0.95rem">
+          {% if ex.last %}
+            Last: {{ ex.last.weight }}kg on {{ ex.last.date.split('T')[0] }} • Next: {{ ex.last.next_weight }}kg
+          {% else %}
+            New
+          {% endif %}
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+
+{% endblock %}

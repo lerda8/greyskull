@@ -46,9 +46,7 @@
   <div class="card mt-3">
     <div class="card-body">
       <h6 class="card-title">Delete Exercise</h6>
-      <form method="post" action="{{ url_for('web_delete_exercise', exercise_id=exercise_id) }}" onsubmit="return confirm('Delete {{ exercise.name }}?')">
-        <button class="btn btn-danger" type="submit">Delete Exercise</button>
-      </form>
+      <a href="{{ url_for('confirm_delete_exercise', exercise_id=exercise_id) }}" class="btn btn-danger" style="width:100%">Delete Exercise</a>
     </div>
   </div>
 

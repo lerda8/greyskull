@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div style="margin-bottom:12px">
+    <a href="{{ url_for('exercise_detail', exercise_id=exercise_id) }}" class="btn btn-light">← Back</a>
+  </div>
+
+  <div style="padding:12px;background:#fff3cd;border:1px solid #ffc107;border-radius:6px">
+    <h3 style="color:#856404;margin:0 0 8px 0">Delete Exercise</h3>
+    <p style="color:#856404;margin:0 0 8px 0">Are you sure you want to delete <strong>{{ exercise.name }}</strong>?</p>
+    <p style="color:#666;font-size:0.9rem;margin:0 0 12px 0">This will also delete all workout history. Cannot be undone.</p>
+    
+    <div style="display:flex;gap:8px;flex-direction:column">
+      <form method="post" action="{{ url_for('web_delete_exercise', exercise_id=exercise_id) }}">
+        <button class="btn btn-danger" type="submit" style="width:100%;padding:12px;font-size:1.05rem">Yes, Delete Exercise</button>
+      </form>
+      <a href="{{ url_for('exercise_detail', exercise_id=exercise_id) }}" class="btn btn-secondary" style="width:100%;padding:12px;font-size:1.05rem;text-align:center;text-decoration:none">Cancel</a>
+    </div>
+  </div>
+
+{% endblock %}

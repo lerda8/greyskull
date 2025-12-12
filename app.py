@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from datetime import datetime
 import json
 import os
@@ -37,6 +37,12 @@ def load_workouts():
         with open(WORKOUTS_FILE, 'r') as f:
             return json.load(f)
     return []
+
+
+def is_mobile_request(req):
+    """Rudimentary mobile detection based on User-Agent header"""
+    ua = (req.headers.get('User-Agent') or '').lower()
+    return 'mobile' in ua or 'iphone' in ua or 'android' in ua
 
 def save_workouts(workouts):
     """Save workouts to JSON file"""
@@ -78,6 +84,9 @@ def index():
             'target_reps': ex['target_reps'],
             'last': last
         })
+    # Serve a simplified mobile view when appropriate
+    if is_mobile_request(request):
+        return render_template('index_mobile.html', exercises=exercises_with_history)
     return render_template('index.html', exercises=exercises_with_history)
 
 @app.route('/api/exercises')
@@ -232,8 +241,28 @@ def exercise_detail(exercise_id):
         return redirect(url_for('index'))
     ex = exercises[exercise_id]
     last = get_last_workout(exercise_id)
+    # If mobile, render a simplified page with server-side history
+    if is_mobile_request(request):
+        workouts = load_workouts()
+        history = [w for w in workouts if w['exercise_id'] == exercise_id]
+        history = sorted(history, key=lambda x: x['date'], reverse=True)
+        return render_template('exercise_mobile.html', exercise_id=exercise_id, exercise=ex, last=last, history=history)
+
     return render_template('exercise.html', exercise_id=exercise_id, exercise=ex, last=last)
 
+
+@app.route('/exercises/<exercise_id>/confirm-delete', methods=['GET'])
+def confirm_delete_exercise(exercise_id):
+    """Show confirmation page for deleting an exercise"""
+    exercises = load_exercises()
+    if exercise_id not in exercises:
+        flash('Exercise not found', 'danger')
+        return redirect(url_for('index'))
+    ex = exercises[exercise_id]
+    
+    if is_mobile_request(request):
+        return render_template('exercise_delete_confirm_mobile.html', exercise_id=exercise_id, exercise=ex)
+    return render_template('exercise_delete_confirm.html', exercise_id=exercise_id, exercise=ex)
 
 @app.route('/exercises/<exercise_id>/log', methods=['POST'])
 def web_log_workout(exercise_id):
