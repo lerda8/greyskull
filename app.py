@@ -54,14 +54,14 @@ def get_last_workout(exercise_id):
 def calculate_next_weight(current_weight, reps_category):
     """Calculate recommended next weight based on reps performed"""
     if reps_category == 'more_than_10':
-        # Hit AMRAP with 10+ reps, increase weight
+        # Hit AMRAP with 10+ reps, increase weight by 2.5kg
         return round(current_weight + 2.5, 1)
     elif reps_category == 'more_than_5':
-        # Hit target reps (5+), increase weight
-        return round(current_weight + 2.5, 1)
+        # Hit 5+ reps, increase weight by 1.5kg
+        return round(current_weight + 1.5, 1)
     elif reps_category == 'less_than_5':
-        # Didn't hit target, keep same or decrease
-        return round(current_weight - 2.5, 1)
+        # Didn't hit 5 reps, keep same weight
+        return current_weight
     return current_weight
 
 @app.route('/')
@@ -267,6 +267,13 @@ def get_history():
     """Get all workout history"""
     workouts = load_workouts()
     return jsonify(sorted(workouts, key=lambda x: x['date'], reverse=True))
+
+@app.route('/api/exercise-history/<exercise_id>')
+def get_exercise_history(exercise_id):
+    """Get workout history for a specific exercise"""
+    workouts = load_workouts()
+    exercise_workouts = [w for w in workouts if w['exercise_id'] == exercise_id]
+    return jsonify(sorted(exercise_workouts, key=lambda x: x['date'], reverse=True))
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -5,7 +5,6 @@
     <h2 class="h5">Exercises</h2>
     <form class="d-flex" method="post" action="{{ url_for('web_add_exercise') }}">
       <input name="name" class="form-control form-control-sm me-2" placeholder="New exercise" required>
-      <input name="target_reps" type="number" class="form-control form-control-sm me-2" value="5" min="1" style="width:80px">
       <button class="btn btn-sm btn-success" type="submit">Add</button>
     </form>
   </div>
@@ -15,15 +14,12 @@
       <div class="list-group-item">
         <div class="d-flex w-100 justify-content-between">
           <a href="{{ url_for('exercise_detail', exercise_id=ex.id) }}" class="mb-1 fw-semibold">{{ ex.name }}</a>
-          <form method="post" action="{{ url_for('web_delete_exercise', exercise_id=ex.id) }}" onsubmit="return confirm('Delete {{ ex.name }}?')">
-            <button class="btn btn-sm btn-outline-danger">Delete</button>
-          </form>
         </div>
-        <small class="text-muted">Target: {{ ex.target_reps }} reps
+        <small class="text-muted">
           {% if ex.last %}
-            • Last: {{ ex.last.weight }}kg on {{ ex.last.date.split('T')[0] }} • Next: {{ ex.last.next_weight }}kg
+            Last: {{ ex.last.weight }}kg on {{ ex.last.date.split('T')[0] }} • Next: {{ ex.last.next_weight }}kg
           {% else %}
-            • New
+            New
           {% endif %}
         </small>
       </div>
