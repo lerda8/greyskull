@@ -67,7 +67,7 @@ def calculate_next_weight(current_weight, reps_category):
         return round(current_weight + 1.5, 1)
     elif reps_category == 'less_than_5':
         # Didn't hit 5 reps, keep same weight
-        return current_weight
+        return round(current_weight - current_weight * 0.10, 1)
     return current_weight
 
 @app.route('/')
@@ -289,6 +289,45 @@ def web_log_workout(exercise_id):
     workouts.append(workout)
     save_workouts(workouts)
     flash('Workout logged', 'success')
+    return redirect(url_for('exercise_detail', exercise_id=exercise_id))
+
+
+@app.route('/exercises/<exercise_id>/confirm-delete-last', methods=['GET'])
+def confirm_delete_last(exercise_id):
+    """Show confirmation page for deleting the most recent workout for an exercise"""
+    exercises = load_exercises()
+    if exercise_id not in exercises:
+        flash('Exercise not found', 'danger')
+        return redirect(url_for('index'))
+    ex = exercises[exercise_id]
+    if is_mobile_request(request):
+        return render_template('exercise_delete_last_confirm_mobile.html', exercise_id=exercise_id, exercise=ex)
+    return render_template('exercise_delete_last_confirm.html', exercise_id=exercise_id, exercise=ex)
+
+
+@app.route('/exercises/<exercise_id>/delete-last', methods=['POST'])
+def web_delete_last(exercise_id):
+    """Delete the most recent workout entry for a given exercise"""
+    exercises = load_exercises()
+    if exercise_id not in exercises:
+        flash('Invalid exercise', 'danger')
+        return redirect(url_for('index'))
+
+    workouts = load_workouts()
+    # find last index with matching exercise_id
+    last_index = None
+    for i in range(len(workouts)-1, -1, -1):
+        if workouts[i].get('exercise_id') == exercise_id:
+            last_index = i
+            break
+
+    if last_index is None:
+        flash('No sessions to delete for this exercise', 'warning')
+        return redirect(url_for('exercise_detail', exercise_id=exercise_id))
+
+    removed = workouts.pop(last_index)
+    save_workouts(workouts)
+    flash(f"Removed last session: {removed.get('weight')} kg on {removed.get('date').split('T')[0]}", 'success')
     return redirect(url_for('exercise_detail', exercise_id=exercise_id))
 
 @app.route('/api/history')

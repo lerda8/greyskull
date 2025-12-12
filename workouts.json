@@ -1,37 +1,5 @@
 [
   {
-    "exercise_id": "rows",
-    "exercise_name": "Chinups / Barbell Rows",
-    "weight": 45.0,
-    "reps_category": "more_than_5",
-    "next_weight": 47.5,
-    "date": "2025-12-12T09:23:41.995234"
-  },
-  {
-    "exercise_id": "rows",
-    "exercise_name": "Chinups / Barbell Rows",
-    "weight": 47.5,
-    "reps_category": "more_than_10",
-    "next_weight": 50.0,
-    "date": "2025-12-12T09:24:02.432798"
-  },
-  {
-    "exercise_id": "fd525a29",
-    "exercise_name": "Cable Triceps Pushdown",
-    "weight": 60.0,
-    "reps_category": "more_than_5",
-    "next_weight": 62.5,
-    "date": "2025-12-12T09:56:47.029695"
-  },
-  {
-    "exercise_id": "ohp",
-    "exercise_name": "Overhead Press",
-    "weight": 85.0,
-    "reps_category": "more_than_5",
-    "next_weight": 87.5,
-    "date": "2025-12-12T10:04:46.559813"
-  },
-  {
     "exercise_id": "a042ebb3",
     "exercise_name": "Dips",
     "weight": 40.0,

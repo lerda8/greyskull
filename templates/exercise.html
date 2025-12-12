@@ -37,6 +37,9 @@
       {% if last %}
         <p>{{ last.weight }} kg • {{ last.reps_category }} • {{ last.date }}</p>
         <p class="text-muted">Suggested next: {{ last.next_weight }} kg</p>
+        <div class="mt-2">
+          <a href="{{ url_for('confirm_delete_last', exercise_id=exercise_id) }}" class="btn btn-sm btn-warning">Delete last session</a>
+        </div>
       {% else %}
         <p class="text-muted">No sessions logged yet.</p>
       {% endif %}

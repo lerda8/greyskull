@@ -29,6 +29,9 @@
       <div style="font-weight:600">{{ last.weight }} kg</div>
       <div style="color:#666">{{ last.reps_category }} • {{ last.date }}</div>
       <div style="color:#666;margin-top:6px">Suggested next: {{ last.next_weight }} kg</div>
+      <div style="margin-top:8px">
+        <a href="{{ url_for('confirm_delete_last', exercise_id=exercise_id) }}" class="btn btn-warning" style="display:block;padding:10px;text-align:center">Delete last session</a>
+      </div>
     {% else %}
       <div style="color:#666">No sessions logged yet.</div>
     {% endif %}
