@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#667eea">
+  <title>Greyskull LP Tracker</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    /* CSS Variables for Dark Mode */
+    :root {
+      --bg-primary: #f5f7fa;
+      --bg-secondary: #ffffff;
+      --card-bg: #ffffff;
+      --card-hover: #fafbfc;
+      --text-primary: #2c3e50;
+      --text-secondary: #7f8c8d;
+      --text-tertiary: #95a5a6;
+      --border-color: #e1e8ed;
+      --border-light: #f0f3f5;
+      --input-bg: #ffffff;
+      --input-border: #dfe6e9;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+      --shadow: 0 2px 8px rgba(0,0,0,0.08);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+      --primary: #667eea;
+      --primary-dark: #5568d3;
+      --success: #00b894;
+      --danger: #e74c3c;
+      --warning: #f39c12;
+      --info: #3498db;
+    }
+
+    [data-theme="dark"] {
+      --bg-primary: #0f1419;
+      --bg-secondary: #1a1f2e;
+      --card-bg: #1a1f2e;
+      --card-hover: #242b3d;
+      --text-primary: #e1e8ed;
+      --text-secondary: #8899a6;
+      --text-tertiary: #697784;
+      --border-color: #2d3748;
+      --border-light: #252d3d;
+      --input-bg: #1a1f2e;
+      --input-border: #2d3748;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+      --shadow: 0 2px 8px rgba(0,0,0,0.4);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+      --primary: #7c8ef7;
+      --primary-dark: #6a7de8;
+      --success: #00d2a0;
+      --danger: #ff6b6b;
+      --warning: #ffc107;
+      --info: #5dade2;
+    }
+
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      transition: background 0.2s ease;
+      padding-bottom: 80px;
+    }
+
+    /* Smooth transitions */
+    .transition-all {
+      transition: all 0.2s ease;
+    }
+
+    /* Container */
+    main.container {
+      max-width: 640px;
+      padding: 16px;
+    }
+
+    /* Navbar */
+    .navbar {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      box-shadow: var(--shadow);
+      padding: 12px 16px;
+      margin-bottom: 20px;
+    }
+
+    .navbar-brand {
+      color: white !important;
+      font-weight: 700;
+      font-size: 1.25rem;
+      letter-spacing: -0.5px;
+    }
+
+    /* Cards */
+    .card-custom {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s ease;
+      overflow: hidden;
+    }
+
+    .card-custom:hover {
+      background: var(--card-hover);
+      box-shadow: var(--shadow);
+    }
+
+    .card-custom:active {
+      transform: scale(0.99);
+    }
+
+    /* Form inputs */
+    .form-control, .form-select {
+      background: var(--input-bg);
+      border: 2px solid var(--input-border);
+      color: var(--text-primary);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 16px;
+      transition: border-color 0.2s;
+    }
+
+    .form-control:focus, .form-select:focus {
+      background: var(--input-bg);
+      border-color: var(--primary);
+      color: var(--text-primary);
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    /* Buttons */
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      border: none;
+      border-radius: 10px;
+      padding: 12px 20px;
+      font-weight: 600;
+      box-shadow: var(--shadow);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #00b894 0%, #00a885 100%);
+      border: none;
+      border-radius: 10px;
+      padding: 12px 20px;
+      font-weight: 600;
+      box-shadow: var(--shadow);
+    }
+
+    .btn-outline-secondary {
+      background: var(--card-bg);
+      border: 2px solid var(--border-color);
+      color: var(--text-secondary);
+      border-radius: 20px;
+      padding: 8px 16px;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .btn-outline-secondary:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* Filter pills */
+    .filter-pills {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 4px 0;
+      margin-bottom: 20px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .filter-pills::-webkit-scrollbar {
+      display: none;
+    }
+
+    .filter-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 20px;
+      border-radius: 20px;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+      background: var(--card-bg);
+      color: var(--text-secondary);
+      border: 2px solid var(--border-color);
+      transition: all 0.2s;
+    }
+
+    .filter-pill:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .filter-pill.active {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      border-color: transparent;
+      box-shadow: 0 2px 8px rgba(102,126,234,0.3);
+    }
+
+    .filter-pill.active-blue {
+      background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+      box-shadow: 0 2px 8px rgba(52,152,219,0.3);
+    }
+
+    .filter-pill.active-red {
+      background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+      box-shadow: 0 2px 8px rgba(231,76,60,0.3);
+    }
+
+    .filter-pill.active-gray {
+      background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+      box-shadow: 0 2px 8px rgba(149,165,166,0.3);
+    }
+
+    /* Label badges */
+    .label-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 10px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: white;
+    }
+
+    .label-badge-a {
+      background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+    }
+
+    .label-badge-b {
+      background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+    }
+
+    .label-badge-add {
+      background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+    }
+
+    /* Dark mode toggle */
+    .dark-mode-toggle {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      border: none;
+      color: white;
+      font-size: 1.3rem;
+      cursor: pointer;
+      box-shadow: var(--shadow-lg);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s;
+    }
+
+    .dark-mode-toggle:hover {
+      transform: scale(1.05);
+    }
+
+    .dark-mode-toggle:active {
+      transform: scale(0.95);
+    }
+
+    /* Alert */
+    .alert {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      border-radius: 10px;
+    }
+
+    .alert-success {
+      border-left: 4px solid var(--success);
+    }
+
+    .alert-danger {
+      border-left: 4px solid var(--danger);
+    }
+
+    /* Loading states */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .loading {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    /* Prevent iOS zoom */
+    @media (max-width: 768px) {
+      input, select, textarea {
+        font-size: 16px !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container-fluid" style="max-width:640px;margin:0 auto">
+      <a class="navbar-brand" href="{{ url_for('index') }}">
+        <span style="font-size:1.5rem">🏋️</span> Greyskull LP
+      </a>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="container">
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Dark Mode Toggle -->
+  <button class="dark-mode-toggle" onclick="toggleDarkMode()" aria-label="Toggle dark mode">
+    <span id="theme-icon">🌙</span>
+  </button>
+
+  <script>
+    // Dark mode toggle
+    function toggleDarkMode() {
+      const html = document.documentElement;
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      
+      document.getElementById('theme-icon').textContent = newTheme === 'dark' ? '☀️' : '🌙';
+    }
+
+    // Load saved theme
+    (function() {
+      const savedTheme = localStorage.getItem('theme') || 'light';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      document.getElementById('theme-icon').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+    })();
+  </script>
+  
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

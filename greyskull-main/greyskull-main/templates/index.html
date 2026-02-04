@@ -1,0 +1,229 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-title-group">
+      <div class="page-title-row">
+        <h2 class="page-title">My Exercises</h2>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px">
+      <button id="toggleSelectModeDesktop" class="btn btn-outline-secondary" onclick="toggleSelectModeDesktop()" style="display:none">
+        Select Multiple
+      </button>
+      <button class="btn btn-success" onclick="document.getElementById('addExerciseModal').style.display='flex'">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:text-top">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        Add Exercise
+      </button>
+    </div>
+  </div>
+
+  <!-- Filter Pills -->
+  <div class="filter-pills mb-3">
+    <a href="{{ url_for('index', filter='all') }}" class="filter-pill {% if current_filter == 'all' %}active{% endif %}">All</a>
+    <a href="{{ url_for('index', filter='Workout A') }}" class="filter-pill {% if current_filter == 'Workout A' %}active active-blue{% endif %}">Workout A</a>
+    <a href="{{ url_for('index', filter='Workout B') }}" class="filter-pill {% if current_filter == 'Workout B' %}active active-red{% endif %}">Workout B</a>
+    <a href="{{ url_for('index', filter='Supplemental') }}" class="filter-pill {% if current_filter == 'Supplemental' %}active active-gray{% endif %}">Supplemental</a>
+  </div>
+
+  {% if exercises %}
+    <div class="exercise-list">
+      {% for ex in exercises %}
+        <a href="{{ url_for('exercise_detail', exercise_id=ex.id) }}" class="exercise-card">
+          <div class="exercise-card__header">
+            <div style="flex:1">
+              <h4 class="exercise-card__title">{{ ex.name }}</h4>
+              <div class="exercise-card__meta">
+                <span class="label-badge {% if ex.label == 'Workout A' %}label-badge-a{% elif ex.label == 'Workout B' %}label-badge-b{% else %}label-badge-add{% endif %}">{{ ex.label }}</span>
+                <span style="font-size:0.85rem;color:var(--text-secondary);font-weight:600">{{ ex.target_reps }} reps</span>
+              </div>
+            </div>
+            <span class="exercise-card__chevron">›</span>
+          </div>
+          {% if ex.last %}
+            <div class="exercise-card__stats">
+              <div class="stat-pill stat-pill--accent">
+                <div class="stat-pill__label">Last</div>
+                <div class="stat-pill__value">{{ ex.last.weight }} kg</div>
+                <div class="stat-pill__hint">{{ ex.last.date|format_date }}</div>
+              </div>
+              <div class="stat-pill stat-pill--success">
+                <div class="stat-pill__label">Next</div>
+                <div class="stat-pill__value">{{ ex.last.next_weight }}</div>
+                <div class="stat-pill__hint">kg</div>
+              </div>
+            </div>
+          {% else %}
+            <div class="empty-callout">No workouts yet — Start today!</div>
+          {% endif %}
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-card">
+      <div style="font-size:3rem;margin-bottom:16px;opacity:0.2">💪</div>
+      <div style="font-size:1.5rem;margin-bottom:12px;font-weight:800;color:var(--text-primary);letter-spacing:-0.5px">No Exercises Yet</div>
+      <p style="color:var(--text-secondary);font-size:1rem;font-weight:500">Tap the + button to add your first exercise</p>
+    </div>
+  {% endif %}
+
+  <!-- Add Exercise Modal -->
+  <div id="addExerciseModal" class="modal-overlay" onclick="if(event.target===this) this.style.display='none'">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h4>Add Exercise</h4>
+        <button class="modal-close" onclick="document.getElementById('addExerciseModal').style.display='none'" aria-label="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <form method="post" action="{{ url_for('web_add_exercise') }}" style="display:flex;flex-direction:column;gap:20px">
+        <div>
+          <label style="display:block;font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:10px;letter-spacing:-0.2px">Exercise Name</label>
+          <input name="name" class="form-control" placeholder="e.g., Bench Press" required autofocus>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:10px;letter-spacing:-0.2px">Workout Label</label>
+          <select name="label" class="form-select">
+            <option value="Workout A">Workout A</option>
+            <option value="Workout B">Workout B</option>
+            <option value="Supplemental" selected>Supplemental</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:10px;letter-spacing:-0.2px">Exercise Type</label>
+          <select name="exercise_type" class="form-select">
+            <option value="upper" selected>Upper Body (+1kg / +2kg for 10+ reps)</option>
+            <option value="legs">Legs (+2kg / +4kg for 10+ reps)</option>
+          </select>
+        </div>
+        <button class="btn btn-success" type="submit" style="margin-top:8px">Add Exercise</button>
+      </form>
+    </div>
+  </div>
+{% endblock %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Greyskull Tracker">
+    <title>Greyskull Workout Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Greyskull LP</h1>
+            <p class="subtitle">Exercise Tracker</p>
+        </header>
+
+        <main id="app">
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+                <button class="tab-btn active" data-tab="exercises">Exercises</button>
+                <button class="tab-btn" data-tab="history">History</button>
+            </div>
+
+            <!-- Exercises Tab -->
+            <div id="exercises-tab" class="tab-content active">
+                <div id="exercises-list" class="exercises-list"></div>
+                <button id="add-exercise-btn" class="btn btn-primary" style="margin: 16px;">+ Add Exercise</button>
+            </div>
+
+            <!-- History Tab -->
+            <div id="history-tab" class="tab-content">
+                <div id="history-list" class="history-list"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Log Workout Modal -->
+    <div id="log-modal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Exercise Name</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="info-box">
+                    <p><strong>Last Session:</strong> <span id="last-date">Never</span></p>
+                    <p><strong>Last Weight:</strong> <span id="last-weight">-</span> kg</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="weight-input">Weight Lifted (kg)</label>
+                    <input type="number" id="weight-input" placeholder="e.g., 60" step="0.5" min="0">
+                </div>
+
+                <div class="form-group">
+                    <label>Reps on Final Set</label>
+                    <div class="reps-options">
+                        <button class="reps-btn" data-reps="less_than_5">
+                            <span class="reps-number">&lt; 5</span>
+                            <span class="reps-label">Less than 5</span>
+                        </button>
+                        <button class="reps-btn" data-reps="more_than_5">
+                            <span class="reps-number">5+</span>
+                            <span class="reps-label">5 or more</span>
+                        </button>
+                        <button class="reps-btn" data-reps="more_than_10">
+                            <span class="reps-number">10+</span>
+                            <span class="reps-label">10 or more</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="next-weight-suggestion" class="suggestion-box" style="display: none;">
+                    <strong>Next Time:</strong> <span id="next-weight-text"></span> kg
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-btn">Cancel</button>
+                <button class="btn btn-primary" id="save-btn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Exercise Modal -->
+    <div id="add-exercise-modal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Exercise</h2>
+                <button class="close-btn" id="close-add-exercise">&times;</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="exercise-name-input">Exercise Name</label>
+                    <input type="text" id="exercise-name-input" placeholder="e.g., Bench Press">
+                </div>
+
+                <div class="form-group">
+                    <label for="target-reps-input">Target Reps</label>
+                    <input type="number" id="target-reps-input" placeholder="e.g., 5" min="1" max="20" value="5">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-add-btn">Cancel</button>
+                <button class="btn btn-primary" id="add-btn">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <div id="toast" class="toast" aria-live="polite"></div>
+</body>
+</html>

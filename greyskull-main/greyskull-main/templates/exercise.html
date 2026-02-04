@@ -1,0 +1,239 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div class="mb-3">
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">← Back</a>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <h3 style="margin:0;font-size:1.8rem;font-weight:700">{{ exercise.name }}</h3>
+    <span class="label-badge {% if exercise.label == 'Workout A' %}label-badge-a{% elif exercise.label == 'Workout B' %}label-badge-b{% else %}label-badge-add{% endif %}">{{ exercise.label }}</span>
+  </div>
+
+  <!-- Stats Cards -->
+  {% if last %}
+  <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:16px;margin-bottom:20px">
+    <div class="card-custom" style="padding:20px;text-align:center">
+      <div style="font-size:0.75rem;color:var(--text-tertiary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Current</div>
+      <div style="font-size:2.5rem;font-weight:700;background:linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:4px">{{ last.weight }}</div>
+      <div style="font-size:0.85rem;color:var(--text-tertiary)">kg</div>
+    </div>
+    <div class="card-custom" style="padding:20px;text-align:center;background:linear-gradient(135deg, rgba(0,184,148,0.1) 0%, rgba(0,168,133,0.1) 100%)">
+      <div style="font-size:0.75rem;color:var(--text-tertiary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Next Goal</div>
+      <div style="font-size:2.5rem;font-weight:700;background:linear-gradient(135deg, var(--success) 0%, #00a885 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:4px">{{ last.next_weight }}</div>
+      <div style="font-size:0.85rem;color:var(--text-tertiary)">kg</div>
+    </div>
+    <div class="card-custom" style="padding:20px">
+      <div style="font-size:0.75rem;color:var(--text-tertiary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Last Workout</div>
+      <div style="font-size:1.1rem;color:var(--text-secondary);font-weight:600;margin-bottom:4px">{{ last.date|format_date }}</div>
+      <div style="font-size:0.85rem;color:var(--text-tertiary)">{{ history|length if history else 0 }} total sessions</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <!-- Log Workout Form -->
+    <div class="card-custom" style="padding:20px">
+      <h4 style="margin:0 0 16px 0;font-size:1.1rem;font-weight:700">Log Workout</h4>
+      <form method="post" action="{{ url_for('web_log_workout', exercise_id=exercise_id) }}">
+        <div class="mb-3">
+          <label class="form-label" style="font-weight:600">Weight (kg)</label>
+          <input name="weight" id="currentWeight" type="number" step="0.5" class="form-control" value="{% if last %}{{ last.next_weight }}{% else %}20{% endif %}" required>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label" style="font-weight:600">Reps on final set</label>
+          <select name="reps_category" id="repsCategory" class="form-select">
+            <option value="less_than_5">&lt; 5 reps (Reduce)</option>
+            <option value="more_than_5" selected>5+ reps (Maintain)</option>
+            <option value="more_than_10">10+ reps (Increase)</option>
+          </select>
+        </div>
+
+        <div class="mb-3" style="padding:12px;background:rgba(0,184,148,0.05);border-radius:8px;border:1px solid rgba(0,184,148,0.2)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <label class="form-label" style="font-weight:600;margin:0">Next Session Weight</label>
+            <button type="button" id="toggleCustomWeightDesktopBtn" style="background:none;border:none;color:var(--primary);font-size:0.85rem;font-weight:600;cursor:pointer;padding:0;text-decoration:underline">
+              Customize
+            </button>
+          </div>
+          
+          <div id="autoWeightDisplayDesktop">
+            <div style="font-size:1.5rem;font-weight:700;color:var(--success);text-align:center">
+              <span id="suggestedWeightDesktop">{% if last %}{{ last.next_weight }}{% else %}20{% endif %}</span> kg
+            </div>
+            <div style="font-size:0.75rem;color:var(--text-tertiary);text-align:center;margin-top:4px">
+              Auto-calculated
+            </div>
+          </div>
+
+          <div id="customWeightInputDesktop" style="display:none">
+            <input name="custom_next_weight" 
+                   id="customNextWeightDesktop"
+                   type="number" 
+                   step="0.5" 
+                   class="form-control" 
+                   placeholder="Enter custom weight">
+            <div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:4px;text-align:center">
+              Auto would be: <span id="autoSuggestionDesktop" style="font-weight:600;color:var(--text-secondary)">{% if last %}{{ last.next_weight }}{% else %}20{% endif %} kg</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary w-100" type="submit">Log Workout</button>
+      </form>
+    </div>
+
+    <!-- Recent History -->
+    <div class="card-custom" style="padding:20px">
+      <h4 style="margin:0 0 16px 0;font-size:1.1rem;font-weight:700">Recent Workouts</h4>
+      <div id="history-container">
+        <p class="text-muted">Loading history...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Danger Zone -->
+  <div class="card-custom" style="padding:20px;margin-top:24px;border:2px solid rgba(231,76,60,0.2)">
+    <h4 style="margin:0 0 12px 0;font-size:1rem;font-weight:700;color:var(--danger)">Danger Zone</h4>
+    <div style="display:flex;gap:12px">
+      {% if last %}
+      <a href="{{ url_for('confirm_delete_last', exercise_id=exercise_id) }}" class="btn btn-outline-secondary" style="flex:1;border-color:var(--warning);color:var(--warning)">Delete Last Workout</a>
+      {% endif %}
+      <a href="{{ url_for('confirm_delete_exercise', exercise_id=exercise_id) }}" class="btn btn-outline-secondary" style="flex:1;border-color:var(--danger);color:var(--danger)">Delete Exercise</a>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Get exercise type from the template
+      const exerciseType = '{{ exercise.exercise_type or "upper" }}';
+      
+      // Desktop custom weight functions
+      function calculateNextWeight(weight, repsCategory, exType) {
+        weight = parseFloat(weight);
+        // Determine base increment: 2kg for legs, 1kg for upper body
+        const baseIncrement = exType === 'legs' ? 2.0 : 1.0;
+        
+        if (repsCategory === 'more_than_10') {
+          // Double increment for 10+ reps
+          return Math.round((weight + (baseIncrement * 2)) * 10) / 10;
+        } else if (repsCategory === 'more_than_5') {
+          // Normal increment
+          return Math.round((weight + baseIncrement) * 10) / 10;
+        } else if (repsCategory === 'less_than_5') {
+          // Deload by 10%
+          return Math.round((weight - weight * 0.10) * 10) / 10;
+        }
+        return weight;
+      }
+
+      function updateSuggestedWeightDesktop() {
+        const weightInput = document.getElementById('currentWeight');
+        const repsSelect = document.getElementById('repsCategory');
+        if (!weightInput || !repsSelect) return;
+        
+        const currentWeight = parseFloat(weightInput.value) || 20;
+        const selectedReps = repsSelect.value;
+        const nextWeight = calculateNextWeight(currentWeight, selectedReps, exerciseType);
+        
+        const suggestedEl = document.getElementById('suggestedWeightDesktop');
+        const autoSugEl = document.getElementById('autoSuggestionDesktop');
+        
+        if (suggestedEl) {
+          suggestedEl.textContent = nextWeight;
+        }
+        if (autoSugEl) {
+          autoSugEl.textContent = nextWeight + ' kg';
+        }
+      }
+
+      function toggleCustomWeightDesktop() {
+        const autoDisplay = document.getElementById('autoWeightDisplayDesktop');
+        const customInput = document.getElementById('customWeightInputDesktop');
+        const toggleBtn = document.getElementById('toggleCustomWeightDesktopBtn');
+        const customWeightField = document.getElementById('customNextWeightDesktop');
+        
+        if (customInput.style.display === 'none' || customInput.style.display === '') {
+          autoDisplay.style.display = 'none';
+          customInput.style.display = 'block';
+          toggleBtn.textContent = 'Use Auto';
+          setTimeout(() => customWeightField.focus(), 100);
+        } else {
+          autoDisplay.style.display = 'block';
+          customInput.style.display = 'none';
+          toggleBtn.textContent = 'Customize';
+          customWeightField.value = '';
+        }
+      }
+
+      // Attach event listeners for desktop
+      const weightInput = document.getElementById('currentWeight');
+      const repsSelect = document.getElementById('repsCategory');
+      const toggleBtn = document.getElementById('toggleCustomWeightDesktopBtn');
+
+      if (weightInput) {
+        weightInput.addEventListener('input', updateSuggestedWeightDesktop);
+      }
+      if (repsSelect) {
+        repsSelect.addEventListener('change', updateSuggestedWeightDesktop);
+      }
+      if (toggleBtn) {
+        toggleBtn.addEventListener('click', toggleCustomWeightDesktop);
+      }
+
+      // Initialize
+      updateSuggestedWeightDesktop();
+
+      // Load exercise history
+      const exerciseId = '{{ exercise_id }}';
+      try {
+        const response = await fetch('/api/exercise-history/' + exerciseId);
+        const history = await response.json();
+        
+        const container = document.getElementById('history-container');
+        
+        if (!history || history.length === 0) {
+          container.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:20px">No history yet</p>';
+          return;
+        }
+        
+        let html = '<div style="display:flex;flex-direction:column;gap:8px">';
+        
+        history.slice(0, 5).forEach(workout => {
+          const date = new Date(workout.date).toLocaleDateString('en-US', {
+            year: 'numeric', month: 'short', day: 'numeric'
+          });
+          const repsLabel = workout.reps_category.replace(/_/g, ' ');
+          const customBadge = workout.is_custom_next_weight 
+            ? '<span style="font-size:0.65rem;padding:2px 6px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;border-radius:4px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;margin-left:6px">Custom</span>'
+            : '';
+          html += `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--bg-primary);border-radius:8px;border:1px solid var(--border-light)">
+              <div style="flex:1">
+                <div style="font-size:0.85rem;color:var(--text-tertiary);margin-bottom:2px">${date}${customBadge}</div>
+                <div style="font-size:0.8rem;color:var(--text-secondary);text-transform:capitalize">${repsLabel}</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:1.4rem;font-weight:700;background:linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">${workout.weight}</div>
+                <div style="font-size:0.75rem;color:var(--text-tertiary)">kg</div>
+              </div>
+            </div>
+          `;
+        });
+        
+        html += '</div>';
+        
+        if (history.length > 5) {
+          html += `<div style="margin-top:12px;text-align:center;color:var(--text-tertiary);font-size:0.85rem">+${history.length - 5} more sessions</div>`;
+        }
+        
+        container.innerHTML = html;
+      } catch (error) {
+        document.getElementById('history-container').innerHTML = 
+          '<p style="color:var(--danger)">Error loading history.</p>';
+      }
+    });
+  </script>
+
+{% endblock %}
