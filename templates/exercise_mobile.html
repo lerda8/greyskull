@@ -1,73 +1,580 @@
 {% extends 'base.html' %}
 
 {% block content %}
-  <div style="margin-bottom:12px">
-    <a href="{{ url_for('index') }}" class="btn btn-light">← Back</a>
+  <div style="margin-bottom:16px">
+    <a href="{{ url_for('index') }}" class="btn" style="padding:12px 20px;font-size:1.2rem;font-weight:700;display:inline-flex;align-items:center;gap:6px;background:#ffffffad;color:var(--text-primary);border:1px solid rgba(255,255,255,0.1);border-radius:10px">
+      Back
+    </a>
   </div>
 
-  <h3 style="margin-top:6px">{{ exercise.name }}</h3>
-
-  <div style="margin-top:12px;padding:12px;background:#fff;border-radius:6px;box-shadow:0 0 0 1px rgba(0,0,0,0.03)">
-    <form method="post" action="{{ url_for('web_log_workout', exercise_id=exercise_id) }}">
-      <label style="display:block;margin-bottom:8px;font-weight:600">Weight (kg)</label>
-      <input name="weight" type="number" step="0.5" class="form-control" required style="font-size:1.1rem;padding:12px;margin-bottom:12px">
-
-      <label style="display:block;margin-bottom:8px;font-weight:600">Reps on final set</label>
-      <select name="reps_category" class="form-select" style="font-size:1.05rem;padding:10px;margin-bottom:12px">
-        <option value="less_than_5">&lt; 5 reps</option>
-        <option value="more_than_5">5+ reps</option>
-        <option value="more_than_10">10+ reps (AMRAP)</option>
-      </select>
-
-      <button class="btn btn-primary" type="submit" style="width:100%;padding:12px;font-size:1.05rem">Save</button>
-    </form>
-  </div>
-
-  <div style="margin-top:12px;padding:12px;background:#fff;border-radius:6px;">
-    <h4 style="margin:0 0 8px 0;font-size:1rem">Last session</h4>
-    {% if last %}
-      <div style="font-weight:600">{{ last.weight }} kg</div>
-      <div style="color:#666">{{ last.reps_category }} • {{ last.date }}</div>
-      <div style="color:#666;margin-top:6px">Suggested next: {{ last.next_weight }} kg</div>
-      <div style="margin-top:8px">
-        <a href="{{ url_for('confirm_delete_last', exercise_id=exercise_id) }}" class="btn btn-warning" style="display:block;padding:10px;text-align:center">Delete last session</a>
-      </div>
-    {% else %}
-      <div style="color:#666">No sessions logged yet.</div>
-    {% endif %}
-  </div>
-
-  <div style="margin-top:12px;padding:12px;background:#fff;border-radius:6px;">
-    <h4 style="margin:0 0 8px 0;font-size:1rem">History</h4>
-    {% if history and history|length > 0 %}
-      <table style="width:100%;border-collapse:collapse;font-size:0.95rem">
-        <thead>
-          <tr style="text-align:left;color:#666;font-size:0.85rem"><th>Date</th><th>Weight</th><th>Reps</th></tr>
-        </thead>
-        <tbody>
-          {% for w in history %}
-            <tr>
-              <td style="padding:6px 0">{{ w.date.split('T')[0] }}</td>
-              <td style="padding:6px 0;font-weight:600">{{ w.weight }} kg</td>
-              <td style="padding:6px 0;color:#666">{{ w.reps_category.replace('_',' ') }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <div style="color:#666">No history available.</div>
-    {% endif %}
-  </div>
-
-  <div style="margin-top:12px;padding:12px;background:#fff;border-radius:6px;">
-    <h4 style="margin:0 0 8px 0;font-size:1rem">Progress graph</h4>
-    <div>
-      <img src="{{ url_for('exercise_chart', exercise_id=exercise_id) }}" alt="Progress graph" style="max-width:100%;height:auto;border:1px solid #eee" />
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;margin-bottom:16px">
+    <h3 style="font-size:1.5rem;font-weight:700;color:var(--text-primary);margin:0">{{ exercise.name }}</h3>
+    <div style="display:flex;align-items:center;gap:8px">
+      <a href="{{ url_for('web_edit_exercise', exercise_id=exercise_id) }}" 
+         style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#ffffffad;border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text-secondary);text-decoration:none"
+         title="Edit Exercise">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+      </a>
+      <span class="label-badge {% if exercise.label == 'Workout A' %}label-badge-a{% elif exercise.label == 'Workout B' %}label-badge-b{% else %}label-badge-add{% endif %}">{{ exercise.label }}</span>
     </div>
   </div>
 
-  <div style="margin-top:12px">
-    <a href="{{ url_for('confirm_delete_exercise', exercise_id=exercise_id) }}" class="btn btn-danger" style="width:100%;padding:12px;font-size:1.05rem;text-decoration:none;display:block;text-align:center">Delete Exercise</a>
+  <!-- Stats Cards -->
+  {% if last %}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;animation:fadeInUp 0.4s ease-out forwards;opacity:0;animation-delay:0s">
+    <div class="card-custom" style="padding:16px;text-align:center;background:#ffffffad;border:2px solid rgba(255,255,255,0.1)">
+      <div style="font-size:0.75rem;color:var(--text-tertiary);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Current</div>
+      <div style="font-size:2.2rem;font-weight:700;color:var(--text-primary);margin-bottom:4px">{{ last.weight }}</div>
+      <div style="font-size:0.8rem;color:var(--text-tertiary)">kg</div>
+    </div>
+    <div class="card-custom" style="padding:16px;text-align:center;background:#ffffffad;border:2px solid rgba(255,255,255,0.1)">
+      <div style="font-size:0.75rem;color:var(--text-tertiary);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Next Goal</div>
+      <div style="font-size:2.2rem;font-weight:700;color:var(--text-primary);margin-bottom:4px">{{ last.next_weight }}</div>
+      <div style="font-size:0.8rem;color:var(--text-tertiary)">kg</div>
+    </div>
   </div>
+
+  {% else %}
+  <div class="card-custom" style="padding:24px;text-align:center;margin-bottom:16px;background:linear-gradient(135deg, rgba(243,156,18,0.1) 0%, rgba(241,196,15,0.1) 100%);animation:fadeInUp 0.4s ease-out forwards;opacity:0">
+    <div style="font-size:1.5rem;margin-bottom:8px">🎯</div>
+    <div style="font-size:1.1rem;font-weight:600;color:var(--text-primary);margin-bottom:4px">Ready to Start</div>
+    <div style="font-size:0.9rem;color:var(--text-secondary)">Log your first workout below</div>
+  </div>
+  {% endif %}
+
+  <!-- Progress Chart -->
+  {% if history and history|length >= 2 %}
+  <div class="card-custom" style="padding:16px;margin-bottom:16px;animation:fadeInUp 0.4s ease-out forwards;opacity:0;animation-delay:0.08s">
+    <h4 style="margin:0 0 12px 0;font-size:0.95rem;font-weight:700;color:var(--text-primary)">📈 Weight Progress</h4>
+    <div id="progressChart" style="width:100%;height:120px;position:relative"></div>
+  </div>
+  {% endif %}
+
+  <!-- Log Workout Form -->
+  <div class="card-custom" style="padding:16px;margin-bottom:16px;animation:fadeInUp 0.4s ease-out forwards;opacity:0;animation-delay:{% if last %}0.1s{% else %}0.05s{% endif %}">
+    <h4 style="margin:0 0 16px 0;font-size:1.1rem;font-weight:700;color:var(--text-primary)">Log Today's Workout</h4>
+    <form method="post" action="{{ url_for('web_log_workout', exercise_id=exercise_id) }}">
+      <label style="display:block;margin-bottom:8px;font-weight:600;color:var(--text-secondary);font-size:0.95rem">Weight (kg)</label>
+      <input name="weight" 
+             type="number" 
+             step="0.5" 
+             min="0"
+             inputmode="decimal"
+             class="form-control" 
+             required 
+             value="{% if last %}{{ last.next_weight }}{% else %}20{% endif %}"
+             style="font-size:1.5rem;padding:16px;margin-bottom:12px;font-weight:600;text-align:center"
+             id="workoutWeight"
+             autofocus>
+
+      <!-- Plate Calculator -->
+      <div id="plateCalculator" style="margin-bottom:20px;padding:14px;background:linear-gradient(135deg, rgba(90,143,139,0.08) 0%, rgba(74,122,118,0.08) 100%);border-radius:12px;border:2px solid rgba(90,143,139,0.15)">
+        <div style="font-size:0.8rem;color:var(--text-tertiary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;text-align:center">🏋️ Plates Per Side</div>
+        <div id="plateDisplay" style="font-size:0.9rem;color:var(--text-primary);font-weight:600;text-align:center;line-height:1.6;min-height:24px">
+          <!-- Plate calculation will appear here -->
+        </div>
+      </div>
+
+      <label style="display:block;margin-bottom:12px;font-weight:600;color:var(--text-secondary);font-size:0.95rem">Reps on Final Set (AMRAP)</label>
+      
+      <!-- Big Touch-Friendly Buttons -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">
+        <input type="radio" name="reps_category" value="less_than_5" id="reps1" style="display:none">
+        <label for="reps1" class="reps-choice">
+          <div class="reps-number">< 5</div>
+          <div class="reps-label">Reduce</div>
+        </label>
+
+        <input type="radio" name="reps_category" value="more_than_5" id="reps2" checked style="display:none">
+        <label for="reps2" class="reps-choice">
+          <div class="reps-number">5+</div>
+          <div class="reps-label">Progress</div>
+        </label>
+
+        <input type="radio" name="reps_category" value="more_than_10" id="reps3" style="display:none">
+        <label for="reps3" class="reps-choice">
+          <div class="reps-number">10+</div>
+          <div class="reps-label">Increase</div>
+        </label>
+      </div>
+
+      <!-- Custom Next Weight Section -->
+      <div style="margin-bottom:20px;padding:16px;background:var(--bg-primary);border-radius:12px;border:2px dashed var(--border-color)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <label style="font-weight:600;color:var(--text-secondary);font-size:0.95rem;margin:0">Next Session Weight</label>
+          <button type="button" id="toggleCustomWeightBtn" style="background:none;border:none;color:var(--primary);font-size:0.85rem;font-weight:600;cursor:pointer;padding:4px 8px;text-decoration:underline">
+            Customize
+          </button>
+        </div>
+        
+        <div id="autoWeightDisplay" style="display:block">
+          <div style="font-size:1.8rem;font-weight:700;background:linear-gradient(135deg, #6b8f5e 0%, #567a4a 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center">
+            <span id="suggestedWeight">{% if last %}{{ last.next_weight }}{% else %}20{% endif %}</span> kg
+          </div>
+          <div style="font-size:0.8rem;color:var(--text-tertiary);text-align:center;margin-top:4px">
+            Auto-calculated
+          </div>
+        </div>
+
+        <div id="customWeightInput" style="display:none">
+          <input name="custom_next_weight" 
+                 id="customNextWeight"
+                 type="number" 
+                 step="0.5" 
+                 inputmode="decimal"
+                 class="form-control" 
+                 placeholder="Enter custom weight"
+                 style="font-size:1.3rem;padding:14px;font-weight:600;text-align:center;margin-bottom:8px">
+          <div style="font-size:0.75rem;color:var(--text-tertiary);text-align:center">
+            Auto would be: <span id="autoSuggestion" style="font-weight:600;color:var(--text-secondary)">{% if last %}{{ last.next_weight }}{% else %}20{% endif %} kg</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes (optional) -->
+      <div style="margin-bottom:20px">
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:var(--text-secondary);font-size:0.95rem">Notes <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>
+        <textarea name="notes" 
+                  class="form-control" 
+                  rows="2" 
+                  placeholder="e.g., felt easy, grip slipped, paused reps..."
+                  style="font-size:0.95rem;padding:12px;resize:vertical;min-height:44px"></textarea>
+      </div>
+
+      <!-- Date Override (optional) -->
+      <div style="margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <label style="font-weight:600;color:var(--text-secondary);font-size:0.95rem;margin:0">Date <span style="font-weight:400;color:var(--text-tertiary)">(today)</span></label>
+          <button type="button" id="toggleDateBtn" style="background:none;border:none;color:var(--primary);font-size:0.85rem;font-weight:600;cursor:pointer;padding:4px 8px;text-decoration:underline">
+            Backfill
+          </button>
+        </div>
+        <div id="dateOverrideInput" style="display:none;margin-top:10px">
+          <input name="workout_date" 
+                 id="workoutDate"
+                 type="date" 
+                 class="form-control" 
+                 style="font-size:1rem;padding:12px;text-align:center">
+          <div style="font-size:0.75rem;color:var(--text-tertiary);text-align:center;margin-top:6px">
+            Leave empty to use today's date
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="logWorkoutBtn" type="submit" style="width:100%;padding:18px;font-size:1.2rem;font-weight:700">
+        Log Workout
+      </button>
+    </form>
+  </div>
+
+  <!-- History -->
+  <div class="card-custom" style="padding:16px;margin-bottom:16px;animation:fadeInUp 0.4s ease-out forwards;opacity:0;animation-delay:{% if last %}0.15s{% else %}0.1s{% endif %}">
+    <h4 style="margin:0 0 12px 0;font-size:1.1rem;font-weight:700;color:var(--text-primary)">Recent Workouts</h4>
+    {% if history and history|length > 0 %}
+      <div style="display:flex;flex-direction:column;gap:8px">
+        {% for w in history %}
+        <div class="history-entry{% if loop.index > 5 %} history-hidden{% endif %}" style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--bg-primary);border-radius:8px;border:1px solid var(--border-light){% if loop.index > 5 %};display:none{% endif %}">
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+              <span style="font-size:0.85rem;color:var(--text-tertiary)">{{ w.date|format_date }}</span>
+              {% if w.is_custom_next_weight %}
+              <span style="font-size:0.65rem;padding:2px 6px;background:linear-gradient(135deg, #5a8f8b 0%, #4a7a76 100%);color:white;border-radius:4px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px">Custom</span>
+              {% endif %}
+            </div>
+            <div style="font-size:0.8rem;color:var(--text-secondary)">{{ w.reps_category.replace('_',' ').title() }}</div>
+            {% if w.notes %}
+            <div style="font-size:0.78rem;color:var(--text-tertiary);margin-top:4px;font-style:italic;line-height:1.4">📝 {{ w.notes }}</div>
+            {% endif %}
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:1.4rem;font-weight:700;background:linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">{{ w.weight }}</div>
+            <div style="font-size:0.75rem;color:var(--text-tertiary)">kg</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% if history|length > 5 %}
+      <button id="toggleHistoryBtn" onclick="toggleHistory()" 
+              style="margin-top:12px;width:100%;padding:12px;background:none;border:2px solid var(--border-color);border-radius:10px;color:var(--text-secondary);font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.2s ease">
+        Show {{ history|length - 5 }} more sessions ▾
+      </button>
+      {% endif %}
+    {% else %}
+      <div style="text-align:center;padding:28px 16px">
+        <div style="font-size:1.5rem;margin-bottom:8px">📋</div>
+        <div style="font-size:1rem;font-weight:600;color:var(--text-primary);margin-bottom:4px">No History Yet</div>
+        <div style="font-size:0.85rem;color:var(--text-secondary)">Log your first workout above to start tracking</div>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Danger Zone -->
+  <div class="card-custom" style="padding:16px;margin-bottom:24px;border:2px solid rgba(231,76,60,0.2);animation:fadeInUp 0.4s ease-out forwards;opacity:0;animation-delay:{% if last %}0.2s{% else %}0.15s{% endif %}">
+    <h4 style="margin:0 0 12px 0;font-size:0.95rem;font-weight:700;color:var(--danger)">Danger Zone</h4>
+    {% if last %}
+    <a href="{{ url_for('confirm_delete_last', exercise_id=exercise_id) }}" 
+       class="btn btn-outline-secondary" 
+       style="width:100%;padding:14px;font-size:1rem;text-decoration:none;display:block;text-align:center;margin-bottom:10px;border-color:var(--warning);color:var(--warning)">
+      Delete Last Workout
+    </a>
+    {% endif %}
+    <a href="{{ url_for('confirm_delete_exercise', exercise_id=exercise_id) }}" 
+       class="btn btn-outline-secondary" 
+       style="width:100%;padding:14px;font-size:1rem;text-decoration:none;display:block;text-align:center;border-color:var(--danger);color:var(--danger)">
+      Delete Exercise
+    </a>
+  </div>
+
+  <style>
+    /* Radio button styling */
+    .reps-choice {
+      padding: 20px 12px;
+      border: 3px solid var(--border-color);
+      border-radius: 12px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--card-bg);
+      transition: all 0.2s ease;
+      display: block;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    .reps-choice:active {
+      transform: scale(0.97);
+    }
+
+    .reps-number {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: var(--text-primary);
+      transition: color 0.2s ease;
+    }
+
+    .reps-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      transition: color 0.2s ease;
+    }
+
+    input[type="radio"]:checked + .reps-choice {
+      border-color: var(--primary) !important;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%) !important;
+      transform: scale(1.05);
+      box-shadow: var(--shadow-lg);
+    }
+
+    input[type="radio"]:checked + .reps-choice .reps-number,
+    input[type="radio"]:checked + .reps-choice .reps-label {
+      color: #faf8f5 !important;
+    }
+    input[type="radio"]:checked + .reps-choice div {
+      color: white !important;
+    }
+    .reps-choice:active {
+      transform: scale(0.98);
+    }
+  </style>
+
+  <script>
+    // Toggle expanded history
+    let historyExpanded = false;
+    function toggleHistory() {
+      historyExpanded = !historyExpanded;
+      const hiddenEntries = document.querySelectorAll('.history-hidden');
+      const btn = document.getElementById('toggleHistoryBtn');
+      hiddenEntries.forEach(function(el) {
+        el.style.display = historyExpanded ? 'flex' : 'none';
+      });
+      if (historyExpanded) {
+        btn.innerHTML = 'Show less ▴';
+      } else {
+        btn.innerHTML = 'Show ' + hiddenEntries.length + ' more sessions ▾';
+      }
+    }
+    // Wait for DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      // Render progress chart
+      (function() {
+        const chartEl = document.getElementById('progressChart');
+        if (!chartEl) return;
+        
+        // Get history data (reversed so oldest is first, limit to last 20)
+        const rawHistory = {{ history|tojson|safe }};
+        const data = rawHistory.slice().reverse().slice(-20);
+        if (data.length < 2) return;
+        
+        const weights = data.map(d => d.weight);
+        const dates = data.map(d => {
+          const dt = new Date(d.date);
+          return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        });
+        
+        const minW = Math.min(...weights);
+        const maxW = Math.max(...weights);
+        const range = maxW - minW || 1;
+        
+        const W = chartEl.offsetWidth;
+        const H = 120;
+        const padTop = 20, padBot = 28, padLeft = 6, padRight = 6;
+        const plotW = W - padLeft - padRight;
+        const plotH = H - padTop - padBot;
+        
+        // Build points
+        const points = weights.map((w, i) => {
+          const x = padLeft + (i / (weights.length - 1)) * plotW;
+          const y = padTop + plotH - ((w - minW) / range) * plotH;
+          return { x, y, w, date: dates[i] };
+        });
+        
+        const polyline = points.map(p => `${p.x},${p.y}`).join(' ');
+        
+        // Gradient fill area
+        const areaPath = `M${points[0].x},${H - padBot} L${polyline} L${points[points.length-1].x},${H - padBot} Z`;
+        
+        // Trend color: green if last > first, red if lower, primary if same
+        const trending = weights[weights.length-1] > weights[0] ? '#6b8f5e' : weights[weights.length-1] < weights[0] ? '#c45c3e' : '#d4793b';
+        
+        let svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block">`;
+        svg += `<defs><linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${trending}" stop-opacity="0.15"/><stop offset="100%" stop-color="${trending}" stop-opacity="0.02"/></linearGradient></defs>`;
+        svg += `<path d="${areaPath}" fill="url(#chartGrad)"/>`;
+        svg += `<polyline points="${polyline}" fill="none" stroke="${trending}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+        
+        // Dots at first, last, and min/max
+        const lastP = points[points.length - 1];
+        const firstP = points[0];
+        svg += `<circle cx="${firstP.x}" cy="${firstP.y}" r="3.5" fill="${trending}" opacity="0.5"/>`;
+        svg += `<circle cx="${lastP.x}" cy="${lastP.y}" r="4" fill="${trending}"/>`;
+        
+        // Labels
+        svg += `<text x="${firstP.x}" y="${firstP.y - 7}" text-anchor="start" font-size="10" font-weight="700" fill="${trending}" opacity="0.6">${firstP.w}</text>`;
+        svg += `<text x="${lastP.x}" y="${lastP.y - 7}" text-anchor="end" font-size="11" font-weight="700" fill="${trending}">${lastP.w}kg</text>`;
+        
+        // X-axis labels (first and last date)
+        svg += `<text x="${padLeft}" y="${H - 6}" text-anchor="start" font-size="9" fill="#a89484">${dates[0]}</text>`;
+        svg += `<text x="${W - padRight}" y="${H - 6}" text-anchor="end" font-size="9" fill="#a89484">${dates[dates.length-1]}</text>`;
+        
+        svg += '</svg>';
+        chartEl.innerHTML = svg;
+      })();
+
+      // Prevent double-submit on Log Workout
+      var logForm = document.querySelector('form[action*="log"]');
+      var logBtn = document.getElementById('logWorkoutBtn');
+      if (logForm && logBtn) {
+        logForm.addEventListener('submit', function() {
+          logBtn.disabled = true;
+          logBtn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px">Logging… <span style="display:inline-block;width:18px;height:18px;border:3px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite"></span></span>';
+          logBtn.style.opacity = '0.7';
+        });
+      }
+
+      // Get exercise type from the template
+      const exerciseType = '{{ exercise.exercise_type or "upper" }}';
+      
+      function calculatePlates(totalWeight) {
+        const barWeight = 20; // 20kg bar
+        
+        // If weight is less than bar, no plates needed
+        if (totalWeight <= barWeight) {
+          return 'Just the bar (20kg)';
+        }
+        
+        // Calculate weight per side
+        const weightPerSide = (totalWeight - barWeight) / 2;
+        
+        if (weightPerSide <= 0) {
+          return 'Just the bar (20kg)';
+        }
+        
+        // Available plates (largest to smallest for greedy algorithm)
+        const availablePlates = [
+          { weight: 25, color: 'red', emoji: '🔴' },
+          { weight: 20, color: 'yellow', emoji: '🟡' },
+          { weight: 15, color: 'blue', emoji: '🔵' },
+          { weight: 10, color: 'green', emoji: '🟢' },
+          { weight: 5, color: 'grey', emoji: '⚫' },
+          { weight: 2.5, color: 'red', emoji: '🔴' },
+          { weight: 1.25, color: 'black', emoji: '⚫' }
+        ];
+        
+        let remaining = Math.round(weightPerSide * 100) / 100; // Round to 2 decimals
+        const platesNeeded = [];
+        
+        // Greedy algorithm: use largest plates first
+        for (const plate of availablePlates) {
+          while (remaining >= plate.weight - 0.001) { // Small tolerance for floating point
+            platesNeeded.push(plate);
+            remaining = Math.round((remaining - plate.weight) * 100) / 100;
+          }
+        }
+        
+        // Check if we couldn't match exactly (with tolerance for floating point errors)
+        if (remaining > 0.1) {
+          // Find nearest achievable weights
+          const lowerWeight = Math.floor(weightPerSide / 1.25) * 1.25 * 2 + barWeight;
+          const upperWeight = Math.ceil(weightPerSide / 1.25) * 1.25 * 2 + barWeight;
+          
+          if (lowerWeight === upperWeight || lowerWeight < barWeight) {
+            return `⚠️ Can't make ${totalWeight}kg exactly<br><small style="font-size:0.75rem;opacity:0.8">Try ${upperWeight}kg instead</small>`;
+          }
+          return `⚠️ Can't make ${totalWeight}kg exactly<br><small style="font-size:0.75rem;opacity:0.8">Try ${lowerWeight}kg or ${upperWeight}kg</small>`;
+        }
+        
+        if (platesNeeded.length === 0) {
+          return 'Just the bar (20kg)';
+        }
+        
+        // Group plates by weight for display
+        const plateCounts = {};
+        platesNeeded.forEach(plate => {
+          const key = `${plate.weight}kg`;
+          if (!plateCounts[key]) {
+            plateCounts[key] = { count: 0, color: plate.color, emoji: plate.emoji };
+          }
+          plateCounts[key].count++;
+        });
+        
+        // Format output with emojis and colors
+        const plateList = Object.entries(plateCounts).map(([weight, info]) => {
+          return `${info.count}× ${weight}`;
+        }).join(' + ');
+        
+        return `${plateList}<br><small style="font-size:0.75rem;opacity:0.8;font-weight:500">(per side)</small>`;
+      }
+      
+      function updatePlateCalculator() {
+        const weightInput = document.getElementById('workoutWeight');
+        const plateDisplay = document.getElementById('plateDisplay');
+        
+        if (!weightInput || !plateDisplay) return;
+        
+        const weight = parseFloat(weightInput.value) || 0;
+        
+        if (weight > 0) {
+          plateDisplay.innerHTML = calculatePlates(weight);
+        } else {
+          plateDisplay.innerHTML = '<span style="opacity:0.5">Enter weight to calculate</span>';
+        }
+      }
+      
+      function calculateNextWeight(weight, repsCategory, exType) {
+        weight = parseFloat(weight);
+        // Determine base increment: 2kg for legs, 1kg for upper body
+        const baseIncrement = exType === 'legs' ? 2.0 : 1.0;
+        
+        if (repsCategory === 'more_than_10') {
+          // Double increment for 10+ reps
+          return Math.round((weight + (baseIncrement * 2)) * 10) / 10;
+        } else if (repsCategory === 'more_than_5') {
+          // Normal increment
+          return Math.round((weight + baseIncrement) * 10) / 10;
+        } else if (repsCategory === 'less_than_5') {
+          // Deload by 10%
+          return Math.round((weight - weight * 0.10) * 10) / 10;
+        }
+        return weight;
+      }
+
+      function updateSuggestedWeight() {
+        const weightInput = document.querySelector('input[name="weight"]');
+        const currentWeight = parseFloat(weightInput.value) || 20;
+        const selectedReps = document.querySelector('input[name="reps_category"]:checked');
+        if (!selectedReps) return;
+        
+        const nextWeight = calculateNextWeight(currentWeight, selectedReps.value, exerciseType);
+        
+        const suggestedWeightEl = document.getElementById('suggestedWeight');
+        const autoSuggestionEl = document.getElementById('autoSuggestion');
+        
+        if (suggestedWeightEl) {
+          suggestedWeightEl.textContent = nextWeight;
+        }
+        if (autoSuggestionEl) {
+          autoSuggestionEl.textContent = nextWeight + ' kg';
+        }
+      }
+
+      function toggleCustomWeight() {
+        const autoDisplay = document.getElementById('autoWeightDisplay');
+        const customInput = document.getElementById('customWeightInput');
+        const toggleBtn = document.getElementById('toggleCustomWeightBtn');
+        const customWeightField = document.getElementById('customNextWeight');
+        
+        if (customInput.style.display === 'none' || customInput.style.display === '') {
+          autoDisplay.style.display = 'none';
+          customInput.style.display = 'block';
+          toggleBtn.textContent = 'Use Auto';
+          setTimeout(() => customWeightField.focus(), 100);
+        } else {
+          autoDisplay.style.display = 'block';
+          customInput.style.display = 'none';
+          toggleBtn.textContent = 'Customize';
+          customWeightField.value = '';
+        }
+      }
+
+      // Attach event listeners
+      const weightInput = document.querySelector('input[name="weight"]');
+      if (weightInput) {
+        weightInput.addEventListener('input', function() {
+          updateSuggestedWeight();
+          updatePlateCalculator();
+        });
+      }
+
+      const repsInputs = document.querySelectorAll('input[name="reps_category"]');
+      repsInputs.forEach(input => {
+        input.addEventListener('change', updateSuggestedWeight);
+      });
+
+      const toggleBtn = document.getElementById('toggleCustomWeightBtn');
+      if (toggleBtn) {
+        toggleBtn.addEventListener('click', toggleCustomWeight);
+      }
+
+      // Date override toggle
+      const toggleDateBtn = document.getElementById('toggleDateBtn');
+      if (toggleDateBtn) {
+        toggleDateBtn.addEventListener('click', function() {
+          const dateInput = document.getElementById('dateOverrideInput');
+          const dateField = document.getElementById('workoutDate');
+          const dateLabel = toggleDateBtn.previousElementSibling.querySelector('span');
+          if (dateInput.style.display === 'none' || dateInput.style.display === '') {
+            dateInput.style.display = 'block';
+            toggleDateBtn.textContent = 'Use Today';
+          } else {
+            dateInput.style.display = 'none';
+            toggleDateBtn.textContent = 'Backfill';
+            dateField.value = '';
+          }
+        });
+      }
+
+      // Initialize with current values
+      updateSuggestedWeight();
+      updatePlateCalculator();
+    });
+  </script>
+
+  <style>
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
 
 {% endblock %}
