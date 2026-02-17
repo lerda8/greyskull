@@ -30,10 +30,11 @@
 
 ### Phase 2: Security & Data Protection
 5. **Password Protection** ✓
-   - HTTP Basic Authentication implemented
+   - Form‑based login page added at `/login` (credentials from environment)
+   - API clients still supported via HTTP Basic Authentication
    - Configurable via environment variables
    - Optional (can be disabled by leaving password empty)
-   - All routes protected with `@auth.login_required`
+   - All routes protected with a custom `@login_required` decorator
 
 6. **Automated Backup System** ✓
    - Automatic backups after workouts

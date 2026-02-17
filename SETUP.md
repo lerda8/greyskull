@@ -23,9 +23,9 @@ python app.py
 
 ### Step 4: Access the app
 Open browser: http://localhost:5000
-Login with:
-- Username: admin
-- Password: (whatever you set in AUTH_PASSWORD)
+You will be redirected to `/login`; enter the credentials:
+- Username: admin (or whatever you set in `AUTH_USERNAME`)
+- Password: (whatever you set in `AUTH_PASSWORD`)
 
 ## That's it! 🎉
 

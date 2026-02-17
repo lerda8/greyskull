@@ -129,7 +129,7 @@ BACKUP_ENABLED=True
 
 ## 🔌 REST API
 
-All endpoints require authentication when `AUTH_PASSWORD` is set.
+All endpoints require authentication when `AUTH_PASSWORD` is set. For the web interface a login form is available at `/login` (use the credentials from `AUTH_USERNAME`/`AUTH_PASSWORD`). API clients can still authenticate using standard HTTP Basic auth by supplying the same username/password in the `Authorization` header.
 
 ### Exercises
 

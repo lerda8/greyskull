@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="page-header">
+  <h2 class="page-title">Please log in</h2>
+</div>
+
+<form method="post" action="{{ url_for('login', next=request.args.get('next')) }}" style="max-width:400px;margin:auto">
+  <div class="form-group">
+    <label class="form-label">Username</label>
+    <input type="text" name="username" class="form-control" required autofocus>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Password</label>
+    <input type="password" name="password" class="form-control" required>
+  </div>
+  <button type="submit" class="btn btn-primary" style="width:100%;margin-top:16px">Log in</button>
+</form>
+
+{% endblock %}

@@ -978,6 +978,15 @@
   </style>
 </head>
 <body>
+  {% if AUTH_ENABLED %}
+  <nav style="text-align:right;padding:8px 16px;">
+    {% if logged_in %}
+      <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-secondary">Logout</a>
+    {% else %}
+      <a href="{{ url_for('login') }}" class="btn btn-sm btn-outline-primary">Login</a>
+    {% endif %}
+  </nav>
+  {% endif %}
   <!-- Main Content -->
   <main class="container">
     {% block content %}{% endblock %}

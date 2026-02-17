@@ -1,5 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, make_response, session
 from flask_httpauth import HTTPBasicAuth
+from functools import wraps
 from datetime import datetime, timezone
 import json
 import os
@@ -28,6 +29,51 @@ init_db(app)
 # Setup authentication (optional)
 auth = HTTPBasicAuth()
 AUTH_ENABLED = bool(os.getenv('AUTH_PASSWORD'))  # Only enable if password is set
+
+def login_required(f):
+    """Custom decorator supporting form-based login or basic auth."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not AUTH_ENABLED:
+            return f(*args, **kwargs)
+        # form session based auth
+        if session.get('logged_in'):
+            return f(*args, **kwargs)
+        # fallback to basic auth credentials
+        auth_header = request.authorization
+        if auth_header and verify_password(auth_header.username, auth_header.password):
+            return f(*args, **kwargs)
+        # API clients should get a basic auth challenge
+        if request.path.startswith('/api/'):
+            return Response('Unauthorized', 401, {'WWW-Authenticate': 'Basic realm="Login Required"'})
+        # otherwise redirect to login page
+        return redirect(url_for('login', next=request.url))
+    return decorated
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if not AUTH_ENABLED:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        username = request.form.get('username', '')
+        password = request.form.get('password', '')
+        expected_username = os.getenv('AUTH_USERNAME', 'admin')
+        expected_password = os.getenv('AUTH_PASSWORD', '')
+        if username == expected_username and password == expected_password:
+            session['logged_in'] = True
+            next_url = request.args.get('next') or url_for('index')
+            return redirect(next_url)
+        flash('Invalid credentials', 'danger')
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    return redirect(url_for('login'))
+
+@app.context_processor
+def inject_auth():
+    return dict(AUTH_ENABLED=AUTH_ENABLED, logged_in=session.get('logged_in'))
 
 @auth.verify_password
 def verify_password(username, password):
@@ -143,7 +189,7 @@ def calculate_next_weight(current_weight, reps_category, exercise_type='upper'):
     return current_weight
 
 @app.route('/')
-@auth.login_required
+@login_required
 def index():
     """Index: list exercises with optional label filtering"""
     try:
@@ -182,7 +228,7 @@ def index():
         return render_template('index.html', exercises=[], current_filter='all')
 
 @app.route('/api/exercises')
-@auth.login_required
+@login_required
 def get_exercises():
     """Get all exercises with their last workout info"""
     try:
@@ -215,7 +261,7 @@ def get_exercises():
 
 
 @app.route('/exercises/add', methods=['POST'])
-@auth.login_required
+@login_required
 def web_add_exercise():
     name = request.form.get('name', '').strip()
     label = request.form.get('label', 'Supplemental').strip()
@@ -243,7 +289,7 @@ def web_add_exercise():
     return redirect(url_for('index'))
 
 @app.route('/api/exercises', methods=['POST'])
-@auth.login_required
+@login_required
 def add_exercise():
     """Add a new exercise"""
     try:
@@ -274,7 +320,7 @@ def add_exercise():
         return {'error': 'Failed to add exercise'}, 500
 
 @app.route('/api/exercises/<exercise_id>', methods=['DELETE'])
-@auth.login_required
+@login_required
 def delete_exercise(exercise_id):
     """Delete an exercise"""
     try:
@@ -297,7 +343,7 @@ def delete_exercise(exercise_id):
 
 
 @app.route('/exercises/<exercise_id>/delete', methods=['POST'])
-@auth.login_required
+@login_required
 def web_delete_exercise(exercise_id):
     try:
         exercise = db.session.get(Exercise, exercise_id)
@@ -321,7 +367,7 @@ def web_delete_exercise(exercise_id):
     return redirect(url_for('index'))
 
 @app.route('/exercises/bulk-delete', methods=['POST'])
-@auth.login_required
+@login_required
 def bulk_delete_exercises():
     """Delete multiple exercises at once"""
     try:
@@ -353,7 +399,7 @@ def bulk_delete_exercises():
     return redirect(url_for('index'))
 
 @app.route('/api/workout', methods=['POST'])
-@auth.login_required
+@login_required
 def save_workout():
     """Save a workout entry"""
     try:
@@ -414,7 +460,7 @@ def save_workout():
 
 
 @app.route('/exercises/<exercise_id>')
-@auth.login_required
+@login_required
 def exercise_detail(exercise_id):
     try:
         exercise = db.session.get(Exercise, exercise_id)
@@ -452,7 +498,7 @@ def exercise_detail(exercise_id):
 
 
 @app.route('/exercises/<exercise_id>/confirm-delete', methods=['GET'])
-@auth.login_required
+@login_required
 def confirm_delete_exercise(exercise_id):
     """Show confirmation page for deleting an exercise"""
     try:
@@ -472,7 +518,7 @@ def confirm_delete_exercise(exercise_id):
         return redirect(url_for('index'))
 
 @app.route('/exercises/<exercise_id>/log', methods=['POST'])
-@auth.login_required
+@login_required
 def web_log_workout(exercise_id):
     try:
         exercise = db.session.get(Exercise, exercise_id)
@@ -549,7 +595,7 @@ def web_log_workout(exercise_id):
 
 
 @app.route('/exercises/<exercise_id>/confirm-delete-last', methods=['GET'])
-@auth.login_required
+@login_required
 def confirm_delete_last(exercise_id):
     """Show confirmation page for deleting the most recent workout for an exercise"""
     try:
@@ -570,7 +616,7 @@ def confirm_delete_last(exercise_id):
 
 
 @app.route('/exercises/<exercise_id>/delete-last', methods=['POST'])
-@auth.login_required
+@login_required
 def web_delete_last(exercise_id):
     """Delete the most recent workout entry for a given exercise"""
     try:
@@ -606,7 +652,7 @@ def web_delete_last(exercise_id):
     return redirect(url_for('exercise_detail', exercise_id=exercise_id, _t=int(time.time())))
 
 @app.route('/exercises/<exercise_id>/edit', methods=['GET', 'POST'])
-@auth.login_required
+@login_required
 def web_edit_exercise(exercise_id):
     """Edit an existing exercise's properties"""
     try:
@@ -655,7 +701,7 @@ def web_edit_exercise(exercise_id):
         return redirect(url_for('exercise_detail', exercise_id=exercise_id))
 
 @app.route('/api/history')
-@auth.login_required
+@login_required
 def get_history():
     """Get all workout history"""
     try:
@@ -666,7 +712,7 @@ def get_history():
         return jsonify({'error': 'Failed to load history'}), 500
 
 @app.route('/api/exercise-history/<exercise_id>')
-@auth.login_required
+@login_required
 def get_exercise_history(exercise_id):
     """Get workout history for a specific exercise"""
     try:
@@ -737,7 +783,7 @@ def _generate_svg_chart(points, width=600, height=200, padding=24):
 
 
 @app.route('/exercise-chart/<exercise_id>')
-@auth.login_required
+@login_required
 def exercise_chart(exercise_id):
     """Return an SVG line chart showing weight over time for the exercise."""
     try:
@@ -785,7 +831,7 @@ def server_error(e):
 
 # Debug route to check database
 @app.route('/debug/db')
-@auth.login_required
+@login_required
 def debug_db():
     """Debug route to check database status"""
     try:
