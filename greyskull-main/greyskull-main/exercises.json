@@ -1,0 +1,38 @@
+{
+  "ohp": {
+    "name": "Overhead Press",
+    "target_reps": 5
+  },
+  "rows": {
+    "name": "Barbell Rows",
+    "target_reps": 5
+  },
+  "squats": {
+    "name": "Squats",
+    "target_reps": 5
+  },
+  "deadlifts": {
+    "name": "Deadlifts",
+    "target_reps": 1
+  },
+  "fd525a29": {
+    "name": "Cable Triceps Pushdown",
+    "target_reps": 5
+  },
+  "bench": {
+    "name": "Bench Press",
+    "target_reps": 5
+  },
+  "chinups": {
+    "name": "Chinups",
+    "target_reps": 5
+  },
+  "7719bd03": {
+    "name": "Lat Pull Downs",
+    "target_reps": 5
+  },
+  "396e1817": {
+    "name": "Barbell Rows",
+    "target_reps": 5
+  }
+}

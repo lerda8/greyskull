@@ -1,21 +1,46 @@
 {% extends 'base.html' %}
 
 {% block content %}
-  <div style="margin-bottom:12px">
-    <a href="{{ url_for('exercise_detail', exercise_id=exercise_id) }}" class="btn btn-light">← Back</a>
-  </div>
-
-  <div style="padding:12px;background:#fff3cd;border:1px solid #ffc107;border-radius:6px">
-    <h3 style="color:#856404;margin:0 0 8px 0">Delete Exercise</h3>
-    <p style="color:#856404;margin:0 0 8px 0">Are you sure you want to delete <strong>{{ exercise.name }}</strong>?</p>
-    <p style="color:#666;font-size:0.9rem;margin:0 0 12px 0">This will also delete all workout history. Cannot be undone.</p>
-    
-    <div style="display:flex;gap:8px;flex-direction:column">
-      <form method="post" action="{{ url_for('web_delete_exercise', exercise_id=exercise_id) }}">
-        <button class="btn btn-danger" type="submit" style="width:100%;padding:12px;font-size:1.05rem">Yes, Delete Exercise</button>
-      </form>
-      <a href="{{ url_for('exercise_detail', exercise_id=exercise_id) }}" class="btn btn-secondary" style="width:100%;padding:12px;font-size:1.05rem;text-align:center;text-decoration:none">Cancel</a>
+<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:var(--light)">
+  <div style="width:100%;max-width:440px;animation:fadeInUp 0.4s ease-out forwards">
+    <div style="background:white;border-radius:20px;box-shadow:0 8px 32px rgba(0,0,0,0.10);overflow:hidden">
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg, var(--danger) 0%, #c0392b 100%);padding:28px 24px;text-align:center">
+        <div style="width:56px;height:56px;background:rgba(255,255,255,0.2);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px auto;font-size:28px">⚠️</div>
+        <h3 style="color:white;margin:0;font-size:1.3rem;font-weight:700">Delete Exercise</h3>
+      </div>
+      <!-- Body -->
+      <div style="padding:28px 24px">
+        <p style="font-size:1.05rem;color:var(--text-primary);margin:0 0 10px 0;line-height:1.6;text-align:center">
+          Are you sure you want to delete <strong>{{ exercise.name }}</strong>?
+        </p>
+        <p style="font-size:0.9rem;color:var(--text-secondary);margin:0 0 28px 0;line-height:1.5;text-align:center">
+          This will permanently delete all workout history for this exercise. This action cannot be undone.
+        </p>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <form method="post" action="{{ url_for('web_delete_exercise', exercise_id=exercise_id) }}">
+            <button class="btn" type="submit" style="width:100%;padding:16px;font-size:1.05rem;font-weight:700;background:var(--danger);color:white;border:none;border-radius:14px;box-sizing:border-box">
+              Yes, Delete Exercise
+            </button>
+          </form>
+          <a href="{{ url_for('exercise_detail', exercise_id=exercise_id) }}" 
+             style="display:block;width:100%;padding:16px;font-size:1.05rem;font-weight:600;text-align:center;text-decoration:none;color:var(--text-secondary);background:var(--light);border-radius:14px;box-sizing:border-box">
+            Cancel
+          </a>
+        </div>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:20px;opacity:0.4">
+      <span style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);letter-spacing:-0.3px">Greyskull LP Tracker</span>
     </div>
   </div>
+</div>
 
+<style>
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  html, body { overflow: hidden; height: 100%; }
+</style>
 {% endblock %}

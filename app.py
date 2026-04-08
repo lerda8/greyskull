@@ -1,17 +1,124 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
-from datetime import datetime
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, make_response, session
+from flask_httpauth import HTTPBasicAuth
+from functools import wraps
+from datetime import datetime, timezone
 import json
 import os
 import uuid
+import logging
+import time
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
+
+# Initialize Flask app
 app = Flask(__name__, template_folder='templates', static_folder='static')
-app.secret_key = 'greyskull-workout-secret'
 
-# File paths
-EXERCISES_FILE = 'exercises.json'
-WORKOUTS_FILE = 'workouts.json'
+# Configuration from environment
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-me-in-production')
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.getenv('DATABASE_PATH', 'workouts.db')}"
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Default exercises
+# Import and initialize database
+from database import db, Exercise, Workout, init_db, backup_database
+
+# Initialize database
+init_db(app)
+
+# Setup authentication (optional)
+auth = HTTPBasicAuth()
+AUTH_ENABLED = bool(os.getenv('AUTH_PASSWORD'))  # Only enable if password is set
+
+def login_required(f):
+    """Custom decorator supporting form-based login or basic auth."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not AUTH_ENABLED:
+            return f(*args, **kwargs)
+        # form session based auth
+        if session.get('logged_in'):
+            return f(*args, **kwargs)
+        # fallback to basic auth credentials
+        auth_header = request.authorization
+        if auth_header and verify_password(auth_header.username, auth_header.password):
+            return f(*args, **kwargs)
+        # API clients should get a basic auth challenge
+        if request.path.startswith('/api/'):
+            return Response('Unauthorized', 401, {'WWW-Authenticate': 'Basic realm="Login Required"'})
+        # otherwise redirect to login page
+        return redirect(url_for('login', next=request.url))
+    return decorated
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if not AUTH_ENABLED:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        username = request.form.get('username', '')
+        password = request.form.get('password', '')
+        expected_username = os.getenv('AUTH_USERNAME', 'admin')
+        expected_password = os.getenv('AUTH_PASSWORD', '')
+        if username == expected_username and password == expected_password:
+            session['logged_in'] = True
+            next_url = request.args.get('next') or url_for('index')
+            return redirect(next_url)
+        flash('Invalid credentials', 'danger')
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    return redirect(url_for('login'))
+
+@app.context_processor
+def inject_auth():
+    return dict(AUTH_ENABLED=AUTH_ENABLED, logged_in=session.get('logged_in'))
+
+@auth.verify_password
+def verify_password(username, password):
+    """Verify username and password"""
+    if not AUTH_ENABLED:
+        return True  # No auth required if password not set
+    
+    expected_username = os.getenv('AUTH_USERNAME', 'admin')
+    expected_password = os.getenv('AUTH_PASSWORD', '')
+    
+    if username == expected_username and password == expected_password:
+        return username
+    return None
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Jinja2 template filters
+@app.template_filter('format_date')
+def format_date(date_string):
+    """Format date string to human-readable format"""
+    try:
+        # Handle both ISO format strings and datetime objects
+        if isinstance(date_string, str):
+            # Parse ISO format: 2024-01-15T10:30:00 or 2024-01-15
+            if 'T' in date_string:
+                dt = datetime.fromisoformat(date_string.replace('Z', '+00:00'))
+            else:
+                dt = datetime.strptime(date_string, '%Y-%m-%d')
+        elif isinstance(date_string, datetime):
+            dt = date_string
+        else:
+            return str(date_string)
+        
+        # Format as "Jan 15, 2024"
+        return dt.strftime('%b %d, %Y')
+    except Exception as e:
+        logger.error(f"Error formatting date {date_string}: {e}")
+        return str(date_string)
+
+# Default exercises (used only for reference now)
 DEFAULT_EXERCISES = {
     'ohp': {'name': 'Overhead Press / Bench Press', 'target_reps': 5},
     'rows': {'name': 'Chinups / Barbell Rows', 'target_reps': 5},
@@ -19,24 +126,29 @@ DEFAULT_EXERCISES = {
     'deadlifts': {'name': 'Deadlifts', 'target_reps': 1}
 }
 
-def load_exercises():
-    """Load exercises from JSON file"""
-    if os.path.exists(EXERCISES_FILE):
-        with open(EXERCISES_FILE, 'r') as f:
-            return json.load(f)
-    return DEFAULT_EXERCISES
+def validate_exercise_name(name):
+    """Validate exercise name"""
+    if not name or not isinstance(name, str):
+        return False
+    name = name.strip()
+    if len(name) < 2 or len(name) > 200:
+        return False
+    return True
 
-def save_exercises(exercises):
-    """Save exercises to JSON file"""
-    with open(EXERCISES_FILE, 'w') as f:
-        json.dump(exercises, f, indent=2)
+def validate_weight(weight):
+    """Validate weight value"""
+    try:
+        weight = float(weight)
+        if weight < 0 or weight > 1000:  # Reasonable limits
+            return False
+        return True
+    except (ValueError, TypeError):
+        return False
 
-def load_workouts():
-    """Load workouts from JSON file"""
-    if os.path.exists(WORKOUTS_FILE):
-        with open(WORKOUTS_FILE, 'r') as f:
-            return json.load(f)
-    return []
+def validate_reps_category(category):
+    """Validate reps category"""
+    valid_categories = ['less_than_5', 'more_than_5', 'more_than_10']
+    return category in valid_categories
 
 
 def is_mobile_request(req):
@@ -44,304 +156,571 @@ def is_mobile_request(req):
     ua = (req.headers.get('User-Agent') or '').lower()
     return 'mobile' in ua or 'iphone' in ua or 'android' in ua
 
-def save_workouts(workouts):
-    """Save workouts to JSON file"""
-    with open(WORKOUTS_FILE, 'w') as f:
-        json.dump(workouts, f, indent=2)
-
 def get_last_workout(exercise_id):
     """Get the last workout for a specific exercise"""
-    workouts = load_workouts()
-    for workout in reversed(workouts):
-        if workout['exercise_id'] == exercise_id:
-            return workout
-    return None
+    try:
+        workout = Workout.query.filter_by(exercise_id=exercise_id).order_by(Workout.date.desc()).first()
+        return workout.to_dict() if workout else None
+    except Exception as e:
+        logger.error(f"Error getting last workout: {e}")
+        return None
 
-def calculate_next_weight(current_weight, reps_category):
-    """Calculate recommended next weight based on reps performed"""
+def calculate_next_weight(current_weight, reps_category, exercise_type='upper'):
+    """
+    Calculate recommended next weight based on reps performed and exercise type.
+    
+    Rules:
+    - Legs exercises: +2kg normal, +4kg for 10+ reps
+    - Upper body exercises: +1kg normal, +2kg for 10+ reps
+    - Less than 5 reps: -10% (deload)
+    """
+    # Determine base increment based on exercise type
+    base_increment = 2.0 if exercise_type == 'legs' else 1.0
+    
     if reps_category == 'more_than_10':
-        # Hit AMRAP with 10+ reps, increase weight by 2.5kg
-        return round(current_weight + 2.5, 1)
+        # Hit AMRAP with 10+ reps, double the normal increase
+        return round(current_weight + (base_increment * 2), 1)
     elif reps_category == 'more_than_5':
-        # Hit 5+ reps, increase weight by 1.5kg
-        return round(current_weight + 1.5, 1)
+        # Hit 5+ reps, normal increase
+        return round(current_weight + base_increment, 1)
     elif reps_category == 'less_than_5':
-        # Didn't hit 5 reps, keep same weight
+        # Didn't hit 5 reps, deload by 10%
         return round(current_weight - current_weight * 0.10, 1)
     return current_weight
 
 @app.route('/')
+@login_required
 def index():
-    """Index: list exercises"""
-    exercises = load_exercises()
-    # Build list with last workout info
-    exercises_with_history = []
-    for ex_id, ex in exercises.items():
-        last = get_last_workout(ex_id)
-        exercises_with_history.append({
-            'id': ex_id,
-            'name': ex['name'],
-            'target_reps': ex['target_reps'],
-            'last': last
-        })
-    # Serve a simplified mobile view when appropriate
-    if is_mobile_request(request):
-        return render_template('index_mobile.html', exercises=exercises_with_history)
-    return render_template('index.html', exercises=exercises_with_history)
+    """Index: list exercises with optional label filtering"""
+    try:
+        # Get filter parameter
+        filter_label = request.args.get('filter', None)
+        
+        # Query exercises
+        if filter_label and filter_label != 'all':
+            exercises = Exercise.query.filter_by(label=filter_label).all()
+        else:
+            exercises = Exercise.query.all()
+        
+        # Build list with last workout info
+        exercises_with_history = []
+        for ex in exercises:
+            last = get_last_workout(ex.id)
+            exercises_with_history.append({
+                'id': ex.id,
+                'name': ex.name,
+                'label': ex.label or 'Supplemental',
+                'target_reps': ex.target_reps,
+                'last': last
+            })
+        
+        # Serve a simplified mobile view when appropriate
+        if is_mobile_request(request):
+            return render_template('index_mobile.html', 
+                                 exercises=exercises_with_history,
+                                 current_filter=filter_label or 'all')
+        return render_template('index.html', 
+                             exercises=exercises_with_history,
+                             current_filter=filter_label or 'all')
+    except Exception as e:
+        logger.error(f"Error in index route: {e}")
+        flash('Error loading exercises', 'danger')
+        return render_template('index.html', exercises=[], current_filter='all')
 
 @app.route('/api/exercises')
+@login_required
 def get_exercises():
     """Get all exercises with their last workout info"""
-    exercises = load_exercises()
-    exercises_with_history = []
-    
-    for ex_id, exercise in exercises.items():
-        last = get_last_workout(ex_id)
+    try:
+        exercises = Exercise.query.all()
+        exercises_with_history = []
         
-        data = {
-            'id': ex_id,
-            'name': exercise['name'],
-            'target_reps': exercise['target_reps'],
-            'last_weight': None,
-            'last_date': None,
-            'next_suggested_weight': None
-        }
+        for exercise in exercises:
+            last = get_last_workout(exercise.id)
+            
+            data = {
+                'id': exercise.id,
+                'name': exercise.name,
+                'target_reps': exercise.target_reps,
+                'last_weight': None,
+                'last_date': None,
+                'next_suggested_weight': None
+            }
+            
+            if last:
+                data['last_weight'] = last['weight']
+                data['last_date'] = last['date']
+                data['next_suggested_weight'] = last['next_weight']
+            
+            exercises_with_history.append(data)
         
-        if last:
-            data['last_weight'] = last['weight']
-            data['last_date'] = last['date']
-            data['next_suggested_weight'] = last['next_weight']
-        
-        exercises_with_history.append(data)
-    
-    return jsonify(exercises_with_history)
+        return jsonify(exercises_with_history)
+    except Exception as e:
+        logger.error(f"Error getting exercises: {e}")
+        return jsonify({'error': 'Failed to load exercises'}), 500
 
 
 @app.route('/exercises/add', methods=['POST'])
+@login_required
 def web_add_exercise():
     name = request.form.get('name', '').strip()
+    label = request.form.get('label', 'Supplemental').strip()
+    exercise_type = request.form.get('exercise_type', 'upper').strip()
     try:
         target_reps = int(request.form.get('target_reps', 5))
     except ValueError:
         target_reps = 5
 
-    if not name:
-        flash('Exercise name required', 'danger')
+    if not validate_exercise_name(name):
+        flash('Invalid exercise name', 'danger')
         return redirect(url_for('index'))
 
-    exercises = load_exercises()
-    exercise_id = str(uuid.uuid4())[:8]
-    exercises[exercise_id] = {'name': name, 'target_reps': target_reps}
-    save_exercises(exercises)
-    flash('Exercise added', 'success')
+    try:
+        exercise_id = str(uuid.uuid4())[:8]
+        exercise = Exercise(id=exercise_id, name=name, label=label, exercise_type=exercise_type, target_reps=target_reps)
+        db.session.add(exercise)
+        db.session.commit()
+        flash('Exercise added', 'success')
+    except Exception as e:
+        logger.error(f"Error adding exercise: {e}")
+        db.session.rollback()
+        flash('Error adding exercise', 'danger')
+    
     return redirect(url_for('index'))
 
 @app.route('/api/exercises', methods=['POST'])
+@login_required
 def add_exercise():
     """Add a new exercise"""
-    data = request.json
-    name = data.get('name', '').strip()
-    target_reps = int(data.get('target_reps', 5))
-    
-    if not name:
-        return {'error': 'Exercise name required'}, 400
-    
-    if target_reps <= 0:
-        return {'error': 'Target reps must be positive'}, 400
-    
-    exercises = load_exercises()
-    exercise_id = str(uuid.uuid4())[:8]  # Short unique ID
-    
-    exercises[exercise_id] = {
-        'name': name,
-        'target_reps': target_reps
-    }
-    
-    save_exercises(exercises)
-    
-    return jsonify({
-        'id': exercise_id,
-        'name': name,
-        'target_reps': target_reps
-    }), 201
+    try:
+        data = request.json
+        name = data.get('name', '').strip()
+        label = data.get('label', 'Supplemental').strip()
+        exercise_type = data.get('exercise_type', 'upper').strip()
+        target_reps = int(data.get('target_reps', 5))
+        
+        if not validate_exercise_name(name):
+            return {'error': 'Invalid exercise name'}, 400
+        
+        if target_reps <= 0:
+            return {'error': 'Target reps must be positive'}, 400
+        
+        if exercise_type not in ['upper', 'legs']:
+            return {'error': 'Invalid exercise type'}, 400
+        
+        exercise_id = str(uuid.uuid4())[:8]
+        exercise = Exercise(id=exercise_id, name=name, label=label, exercise_type=exercise_type, target_reps=target_reps)
+        db.session.add(exercise)
+        db.session.commit()
+        
+        return jsonify(exercise.to_dict()), 201
+    except Exception as e:
+        logger.error(f"Error adding exercise via API: {e}")
+        db.session.rollback()
+        return {'error': 'Failed to add exercise'}, 500
 
 @app.route('/api/exercises/<exercise_id>', methods=['DELETE'])
+@login_required
 def delete_exercise(exercise_id):
     """Delete an exercise"""
-    exercises = load_exercises()
-    
-    if exercise_id not in exercises:
-        return {'error': 'Exercise not found'}, 404
-    
-    del exercises[exercise_id]
-    save_exercises(exercises)
-    
-    # Also delete associated workouts
-    workouts = load_workouts()
-    workouts = [w for w in workouts if w['exercise_id'] != exercise_id]
-    save_workouts(workouts)
-    
-    return jsonify({'success': True})
+    try:
+        exercise = db.session.get(Exercise, exercise_id)
+        if not exercise:
+            return {'error': 'Exercise not found'}, 404
+        
+        db.session.delete(exercise)
+        db.session.commit()
+        
+        # Backup after deletion
+        if os.getenv('BACKUP_ENABLED', 'True').lower() == 'true':
+            backup_database(os.getenv('BACKUP_DIR', 'backups'))
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error deleting exercise: {e}")
+        db.session.rollback()
+        return {'error': 'Failed to delete exercise'}, 500
 
 
 @app.route('/exercises/<exercise_id>/delete', methods=['POST'])
+@login_required
 def web_delete_exercise(exercise_id):
-    exercises = load_exercises()
-    if exercise_id not in exercises:
-        flash('Exercise not found', 'danger')
-        return redirect(url_for('index'))
-    del exercises[exercise_id]
-    save_exercises(exercises)
-    # delete workouts
-    workouts = load_workouts()
-    workouts = [w for w in workouts if w['exercise_id'] != exercise_id]
-    save_workouts(workouts)
-    flash('Exercise deleted', 'success')
+    try:
+        exercise = db.session.get(Exercise, exercise_id)
+        if not exercise:
+            flash('Exercise not found', 'danger')
+            return redirect(url_for('index'))
+        
+        db.session.delete(exercise)
+        db.session.commit()
+        
+        # Backup after deletion
+        if os.getenv('BACKUP_ENABLED', 'True').lower() == 'true':
+            backup_database(os.getenv('BACKUP_DIR', 'backups'))
+        
+        flash('Exercise deleted', 'success')
+    except Exception as e:
+        logger.error(f"Error deleting exercise: {e}")
+        db.session.rollback()
+        flash('Error deleting exercise', 'danger')
+    
+    return redirect(url_for('index'))
+
+@app.route('/exercises/bulk-delete', methods=['POST'])
+@login_required
+def bulk_delete_exercises():
+    """Delete multiple exercises at once"""
+    try:
+        exercise_ids = request.form.getlist('exercise_ids')
+        
+        if not exercise_ids:
+            flash('No exercises selected', 'warning')
+            return redirect(url_for('index'))
+        
+        deleted_count = 0
+        for exercise_id in exercise_ids:
+            exercise = db.session.get(Exercise, exercise_id)
+            if exercise:
+                db.session.delete(exercise)
+                deleted_count += 1
+        
+        db.session.commit()
+        
+        # Backup after bulk deletion
+        if os.getenv('BACKUP_ENABLED', 'True').lower() == 'true':
+            backup_database(os.getenv('BACKUP_DIR', 'backups'))
+        
+        flash(f'Successfully deleted {deleted_count} exercise(s)', 'success')
+    except Exception as e:
+        logger.error(f"Error in bulk delete: {e}")
+        db.session.rollback()
+        flash('Error deleting exercises', 'danger')
+    
     return redirect(url_for('index'))
 
 @app.route('/api/workout', methods=['POST'])
+@login_required
 def save_workout():
     """Save a workout entry"""
-    data = request.json
-    
-    exercise_id = data.get('exercise_id')
-    weight = float(data.get('weight'))
-    reps_category = data.get('reps_category')  # 'less_than_5', 'more_than_5', 'more_than_10'
-    
-    exercises = load_exercises()
-    if not exercise_id or exercise_id not in exercises:
-        return {'error': 'Invalid exercise'}, 400
-    
-    # Calculate next suggested weight
-    next_weight = calculate_next_weight(weight, reps_category)
-    
-    # Create workout entry
-    workout = {
-        'exercise_id': exercise_id,
-        'exercise_name': exercises[exercise_id]['name'],
-        'weight': weight,
-        'reps_category': reps_category,
-        'next_weight': next_weight,
-        'date': datetime.now().isoformat()
-    }
-    
-    # Save to file
-    workouts = load_workouts()
-    workouts.append(workout)
-    save_workouts(workouts)
-    
-    return jsonify(workout), 201
+    try:
+        data = request.json
+        
+        exercise_id = data.get('exercise_id')
+        weight = float(data.get('weight'))
+        reps_category = data.get('reps_category')
+        custom_next_weight = data.get('custom_next_weight')
+        
+        if not validate_weight(weight):
+            return {'error': 'Invalid weight value'}, 400
+        
+        if not validate_reps_category(reps_category):
+            return {'error': 'Invalid reps category'}, 400
+        
+        exercise = db.session.get(Exercise, exercise_id)
+        if not exercise:
+            return {'error': 'Invalid exercise'}, 400
+        
+        # Check if user provided custom next weight
+        if custom_next_weight is not None:
+            try:
+                next_weight = float(custom_next_weight)
+                if not validate_weight(next_weight):
+                    return {'error': 'Invalid custom next weight'}, 400
+                is_custom = True
+            except (ValueError, TypeError):
+                return {'error': 'Invalid custom next weight'}, 400
+        else:
+            # Use automatic calculation based on exercise type
+            next_weight = calculate_next_weight(weight, reps_category, exercise.exercise_type or 'upper')
+            is_custom = False
+        
+        # Create workout entry
+        workout = Workout(
+            exercise_id=exercise_id,
+            exercise_name=exercise.name,
+            weight=weight,
+            reps_category=reps_category,
+            next_weight=next_weight,
+            is_custom_next_weight=is_custom,
+            date=datetime.now(timezone.utc)
+        )
+        
+        db.session.add(workout)
+        db.session.commit()
+        
+        # Backup after workout
+        if os.getenv('BACKUP_ENABLED', 'True').lower() == 'true':
+            backup_database(os.getenv('BACKUP_DIR', 'backups'))
+        
+        return jsonify(workout.to_dict()), 201
+    except Exception as e:
+        logger.error(f"Error saving workout: {e}")
+        db.session.rollback()
+        return {'error': 'Failed to save workout'}, 500
 
 
 @app.route('/exercises/<exercise_id>')
+@login_required
 def exercise_detail(exercise_id):
-    exercises = load_exercises()
-    if exercise_id not in exercises:
-        flash('Exercise not found', 'danger')
-        return redirect(url_for('index'))
-    ex = exercises[exercise_id]
-    last = get_last_workout(exercise_id)
-    # If mobile, render a simplified page with server-side history
-    if is_mobile_request(request):
-        workouts = load_workouts()
-        history = [w for w in workouts if w['exercise_id'] == exercise_id]
-        history = sorted(history, key=lambda x: x['date'], reverse=True)
-        return render_template('exercise_mobile.html', exercise_id=exercise_id, exercise=ex, last=last, history=history)
+    try:
+        exercise = db.session.get(Exercise, exercise_id)
+        if not exercise:
+            flash('Exercise not found', 'danger')
+            return redirect(url_for('index'))
+        
+        ex = exercise.to_dict()
+        last = get_last_workout(exercise_id)
+        
+        # If mobile, render a simplified page with server-side history
+        if is_mobile_request(request):
+            workouts = Workout.query.filter_by(exercise_id=exercise_id).order_by(Workout.date.desc()).all()
+            history = [w.to_dict() for w in workouts]
+            response = make_response(render_template('exercise_mobile.html', exercise_id=exercise_id, exercise=ex, last=last, history=history))
+            # Prevent caching to ensure fresh data after updates
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+            return response
 
-    return render_template('exercise.html', exercise_id=exercise_id, exercise=ex, last=last)
+        # Desktop also needs history for server-side rendering
+        workouts = Workout.query.filter_by(exercise_id=exercise_id).order_by(Workout.date.desc()).all()
+        history = [w.to_dict() for w in workouts]
+        response = make_response(render_template('exercise.html', exercise_id=exercise_id, exercise=ex, last=last, history=history))
+        # Prevent caching to ensure fresh data after updates
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+    except Exception as e:
+        logger.error(f"Error in exercise detail: {e}", exc_info=True)
+        flash('Error loading exercise', 'danger')
+        return redirect(url_for('index'))
 
 
 @app.route('/exercises/<exercise_id>/confirm-delete', methods=['GET'])
+@login_required
 def confirm_delete_exercise(exercise_id):
     """Show confirmation page for deleting an exercise"""
-    exercises = load_exercises()
-    if exercise_id not in exercises:
-        flash('Exercise not found', 'danger')
+    try:
+        exercise = db.session.get(Exercise, exercise_id)
+        if not exercise:
+            flash('Exercise not found', 'danger')
+            return redirect(url_for('index'))
+        
+        ex = exercise.to_dict()
+        
+        if is_mobile_request(request):
+            return render_template('exercise_delete_confirm_mobile.html', exercise_id=exercise_id, exercise=ex)
+        return render_template('exercise_delete_confirm.html', exercise_id=exercise_id, exercise=ex)
+    except Exception as e:
+        logger.error(f"Error in confirm delete: {e}")
+        flash('Error loading exercise', 'danger')
         return redirect(url_for('index'))
-    ex = exercises[exercise_id]
-    
-    if is_mobile_request(request):
-        return render_template('exercise_delete_confirm_mobile.html', exercise_id=exercise_id, exercise=ex)
-    return render_template('exercise_delete_confirm.html', exercise_id=exercise_id, exercise=ex)
 
 @app.route('/exercises/<exercise_id>/log', methods=['POST'])
+@login_required
 def web_log_workout(exercise_id):
-    exercises = load_exercises()
-    if exercise_id not in exercises:
-        flash('Invalid exercise', 'danger')
-        return redirect(url_for('index'))
     try:
+        exercise = db.session.get(Exercise, exercise_id)
+        if not exercise:
+            flash('Invalid exercise', 'danger')
+            return redirect(url_for('index'))
+        
         weight = float(request.form.get('weight', 0))
-    except ValueError:
-        flash('Invalid weight', 'danger')
-        return redirect(url_for('exercise_detail', exercise_id=exercise_id))
-    reps_category = request.form.get('reps_category')
-    next_weight = calculate_next_weight(weight, reps_category)
-    workout = {
-        'exercise_id': exercise_id,
-        'exercise_name': exercises[exercise_id]['name'],
-        'weight': weight,
-        'reps_category': reps_category,
-        'next_weight': next_weight,
-        'date': datetime.now().isoformat()
-    }
-    workouts = load_workouts()
-    workouts.append(workout)
-    save_workouts(workouts)
-    flash('Workout logged', 'success')
-    return redirect(url_for('exercise_detail', exercise_id=exercise_id))
+        if not validate_weight(weight):
+            flash('Invalid weight', 'danger')
+            return redirect(url_for('exercise_detail', exercise_id=exercise_id))
+        
+        reps_category = request.form.get('reps_category')
+        if not validate_reps_category(reps_category):
+            flash('Invalid reps category', 'danger')
+            return redirect(url_for('exercise_detail', exercise_id=exercise_id))
+        
+        # Check if user provided custom next weight
+        custom_next_weight = request.form.get('custom_next_weight', '').strip()
+        is_custom = False
+        if custom_next_weight:
+            try:
+                next_weight = float(custom_next_weight)
+                if not validate_weight(next_weight):
+                    flash('Invalid custom next weight', 'danger')
+                    return redirect(url_for('exercise_detail', exercise_id=exercise_id))
+                is_custom = True
+            except ValueError:
+                flash('Invalid custom next weight', 'danger')
+                return redirect(url_for('exercise_detail', exercise_id=exercise_id))
+        else:
+            # Use automatic calculation based on exercise type
+            next_weight = calculate_next_weight(weight, reps_category, exercise.exercise_type or 'upper')
+        
+        notes = request.form.get('notes', '').strip() or None
+        
+        # Check if user provided a custom date
+        custom_date = request.form.get('workout_date', '').strip()
+        if custom_date:
+            try:
+                workout_date = datetime.strptime(custom_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+            except ValueError:
+                flash('Invalid date format', 'danger')
+                return redirect(url_for('exercise_detail', exercise_id=exercise_id))
+        else:
+            workout_date = datetime.now(timezone.utc)
+        
+        workout = Workout(
+            exercise_id=exercise_id,
+            exercise_name=exercise.name,
+            weight=weight,
+            reps_category=reps_category,
+            next_weight=next_weight,
+            is_custom_next_weight=is_custom,
+            date=workout_date,
+            notes=notes
+        )
+        
+        db.session.add(workout)
+        db.session.commit()
+        
+        # Backup after workout
+        if os.getenv('BACKUP_ENABLED', 'True').lower() == 'true':
+            backup_database(os.getenv('BACKUP_DIR', 'backups'))
+        
+        flash('Workout logged', 'success')
+    except Exception as e:
+        logger.error(f"Error logging workout: {e}")
+        db.session.rollback()
+        flash('Error logging workout', 'danger')
+    
+    # Add cache-busting parameter to force reload
+    return redirect(url_for('exercise_detail', exercise_id=exercise_id, _t=int(time.time())))
 
 
 @app.route('/exercises/<exercise_id>/confirm-delete-last', methods=['GET'])
+@login_required
 def confirm_delete_last(exercise_id):
     """Show confirmation page for deleting the most recent workout for an exercise"""
-    exercises = load_exercises()
-    if exercise_id not in exercises:
-        flash('Exercise not found', 'danger')
+    try:
+        exercise = db.session.get(Exercise, exercise_id)
+        if not exercise:
+            flash('Exercise not found', 'danger')
+            return redirect(url_for('index'))
+        
+        ex = exercise.to_dict()
+        
+        if is_mobile_request(request):
+            return render_template('exercise_delete_last_confirm_mobile.html', exercise_id=exercise_id, exercise=ex)
+        return render_template('exercise_delete_last_confirm.html', exercise_id=exercise_id, exercise=ex)
+    except Exception as e:
+        logger.error(f"Error in confirm delete last: {e}")
+        flash('Error loading exercise', 'danger')
         return redirect(url_for('index'))
-    ex = exercises[exercise_id]
-    if is_mobile_request(request):
-        return render_template('exercise_delete_last_confirm_mobile.html', exercise_id=exercise_id, exercise=ex)
-    return render_template('exercise_delete_last_confirm.html', exercise_id=exercise_id, exercise=ex)
 
 
 @app.route('/exercises/<exercise_id>/delete-last', methods=['POST'])
+@login_required
 def web_delete_last(exercise_id):
     """Delete the most recent workout entry for a given exercise"""
-    exercises = load_exercises()
-    if exercise_id not in exercises:
-        flash('Invalid exercise', 'danger')
-        return redirect(url_for('index'))
+    try:
+        exercise = db.session.get(Exercise, exercise_id)
+        if not exercise:
+            flash('Invalid exercise', 'danger')
+            return redirect(url_for('index'))
 
-    workouts = load_workouts()
-    # find last index with matching exercise_id
-    last_index = None
-    for i in range(len(workouts)-1, -1, -1):
-        if workouts[i].get('exercise_id') == exercise_id:
-            last_index = i
-            break
+        # Find last workout for this exercise
+        last_workout = Workout.query.filter_by(exercise_id=exercise_id).order_by(Workout.date.desc()).first()
+        
+        if not last_workout:
+            flash('No sessions to delete for this exercise', 'warning')
+            return redirect(url_for('exercise_detail', exercise_id=exercise_id))
 
-    if last_index is None:
-        flash('No sessions to delete for this exercise', 'warning')
+        removed_weight = last_workout.weight
+        removed_date = last_workout.date.strftime('%Y-%m-%d')
+        
+        db.session.delete(last_workout)
+        db.session.commit()
+        
+        # Backup after deletion
+        if os.getenv('BACKUP_ENABLED', 'True').lower() == 'true':
+            backup_database(os.getenv('BACKUP_DIR', 'backups'))
+        
+        flash(f"Removed last session: {removed_weight} kg on {removed_date}", 'success')
+    except Exception as e:
+        logger.error(f"Error deleting last workout: {e}")
+        db.session.rollback()
+        flash('Error deleting workout', 'danger')
+    
+    # Add cache-busting parameter to force reload
+    return redirect(url_for('exercise_detail', exercise_id=exercise_id, _t=int(time.time())))
+
+@app.route('/exercises/<exercise_id>/edit', methods=['GET', 'POST'])
+@login_required
+def web_edit_exercise(exercise_id):
+    """Edit an existing exercise's properties"""
+    try:
+        exercise = db.session.get(Exercise, exercise_id)
+        if not exercise:
+            flash('Exercise not found', 'danger')
+            return redirect(url_for('index'))
+
+        if request.method == 'POST':
+            name = request.form.get('name', '').strip()
+            label = request.form.get('label', 'Supplemental').strip()
+            exercise_type = request.form.get('exercise_type', 'upper').strip()
+            try:
+                target_reps = int(request.form.get('target_reps', 5))
+            except ValueError:
+                target_reps = 5
+
+            if not validate_exercise_name(name):
+                flash('Invalid exercise name', 'danger')
+                return redirect(url_for('web_edit_exercise', exercise_id=exercise_id))
+
+            if target_reps <= 0:
+                flash('Target reps must be positive', 'danger')
+                return redirect(url_for('web_edit_exercise', exercise_id=exercise_id))
+
+            exercise.name = name
+            exercise.label = label
+            exercise.exercise_type = exercise_type
+            exercise.target_reps = target_reps
+            db.session.commit()
+
+            # Backup after edit
+            if os.getenv('BACKUP_ENABLED', 'True').lower() == 'true':
+                backup_database(os.getenv('BACKUP_DIR', 'backups'))
+
+            flash('Exercise updated', 'success')
+            return redirect(url_for('exercise_detail', exercise_id=exercise_id, _t=int(time.time())))
+
+        ex = exercise.to_dict()
+        if is_mobile_request(request):
+            return render_template('exercise_edit_mobile.html', exercise_id=exercise_id, exercise=ex)
+        return render_template('exercise_edit.html', exercise_id=exercise_id, exercise=ex)
+    except Exception as e:
+        logger.error(f"Error editing exercise: {e}", exc_info=True)
+        flash('Error editing exercise', 'danger')
         return redirect(url_for('exercise_detail', exercise_id=exercise_id))
 
-    removed = workouts.pop(last_index)
-    save_workouts(workouts)
-    flash(f"Removed last session: {removed.get('weight')} kg on {removed.get('date').split('T')[0]}", 'success')
-    return redirect(url_for('exercise_detail', exercise_id=exercise_id))
-
 @app.route('/api/history')
+@login_required
 def get_history():
     """Get all workout history"""
-    workouts = load_workouts()
-    return jsonify(sorted(workouts, key=lambda x: x['date'], reverse=True))
+    try:
+        workouts = Workout.query.order_by(Workout.date.desc()).all()
+        return jsonify([w.to_dict() for w in workouts])
+    except Exception as e:
+        logger.error(f"Error getting history: {e}")
+        return jsonify({'error': 'Failed to load history'}), 500
 
 @app.route('/api/exercise-history/<exercise_id>')
+@login_required
 def get_exercise_history(exercise_id):
     """Get workout history for a specific exercise"""
-    workouts = load_workouts()
-    exercise_workouts = [w for w in workouts if w['exercise_id'] == exercise_id]
-    return jsonify(sorted(exercise_workouts, key=lambda x: x['date'], reverse=True))
+    try:
+        workouts = Workout.query.filter_by(exercise_id=exercise_id).order_by(Workout.date.desc()).all()
+        return jsonify([w.to_dict() for w in workouts])
+    except Exception as e:
+        logger.error(f"Error getting exercise history: {e}")
+        return jsonify({'error': 'Failed to load history'}), 500
 
 
 def _generate_svg_chart(points, width=600, height=200, padding=24):
@@ -404,27 +783,76 @@ def _generate_svg_chart(points, width=600, height=200, padding=24):
 
 
 @app.route('/exercise-chart/<exercise_id>')
+@login_required
 def exercise_chart(exercise_id):
     """Return an SVG line chart showing weight over time for the exercise."""
-    workouts = load_workouts()
-    # filter and sort ascending by date
-    entries = [w for w in workouts if w.get('exercise_id') == exercise_id]
-    if not entries:
+    try:
+        workouts = Workout.query.filter_by(exercise_id=exercise_id).order_by(Workout.date).all()
+        
+        if not workouts:
+            svg = _generate_svg_chart([])
+            return Response(svg, mimetype='image/svg+xml')
+
+        # Convert dates and weights
+        pts = []
+        for workout in workouts:
+            try:
+                pts.append((workout.date, workout.weight))
+            except Exception:
+                continue
+
+        svg = _generate_svg_chart(pts, width=700, height=220)
+        return Response(svg, mimetype='image/svg+xml')
+    except Exception as e:
+        logger.error(f"Error generating chart: {e}")
         svg = _generate_svg_chart([])
         return Response(svg, mimetype='image/svg+xml')
 
-    # Convert dates and weights
-    pts = []
-    for e in sorted(entries, key=lambda x: x['date']):
-        try:
-            dt = datetime.fromisoformat(e['date'])
-            w = float(e.get('weight', 0))
-            pts.append((dt, w))
-        except Exception:
-            continue
 
-    svg = _generate_svg_chart(pts, width=700, height=220)
-    return Response(svg, mimetype='image/svg+xml')
+# Error handlers
+@app.errorhandler(404)
+def not_found(e):
+    """Handle 404 errors"""
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Not found'}), 404
+    flash('Page not found', 'warning')
+    return redirect(url_for('index'))
+
+
+@app.errorhandler(500)
+def server_error(e):
+    """Handle 500 errors"""
+    logger.error(f"Server error: {e}", exc_info=True)
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Internal server error'}), 500
+    flash('An error occurred. Please try again.', 'danger')
+    return redirect(url_for('index'))
+
+
+# Debug route to check database
+@app.route('/debug/db')
+@login_required
+def debug_db():
+    """Debug route to check database status"""
+    try:
+        exercises_count = Exercise.query.count()
+        workouts_count = Workout.query.count()
+        exercises = Exercise.query.all()
+        
+        result = {
+            'exercises_count': exercises_count,
+            'workouts_count': workouts_count,
+            'exercises': [e.to_dict() for e in exercises]
+        }
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    host = os.getenv('FLASK_HOST', '0.0.0.0')
+    port = int(os.getenv('FLASK_PORT', 5000))
+    
+    logger.info(f"Starting Greyskull Workout Tracker on {host}:{port} (debug={debug_mode})")
+    app.run(debug=debug_mode, host=host, port=port)

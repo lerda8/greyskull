@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="max-width:520px;margin:0 auto;padding:24px 0">
+  <div style="animation:fadeInUp 0.4s ease-out forwards">
+    
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+      <a href="{{ url_for('exercise_detail', exercise_id=exercise_id) }}" 
+         class="btn btn-outline-secondary" style="padding:10px 18px;font-weight:600">
+        ← Back
+      </a>
+      <h3 style="font-size:1.3rem;font-weight:700;color:var(--text-primary);margin:0">Edit Exercise</h3>
+    </div>
+    
+    <!-- Edit Form Card -->
+    <div class="card-custom" style="padding:28px">
+      <form method="post" action="{{ url_for('web_edit_exercise', exercise_id=exercise_id) }}" style="display:flex;flex-direction:column;gap:20px">
+        
+        <div>
+          <label style="display:block;font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:10px;letter-spacing:-0.2px">Exercise Name</label>
+          <input name="name" 
+                 class="form-control" 
+                 value="{{ exercise.name }}"
+                 placeholder="e.g., Bench Press" 
+                 required
+                 autofocus>
+        </div>
+        
+        <div>
+          <label style="display:block;font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:10px;letter-spacing:-0.2px">Workout Label</label>
+          <select name="label" class="form-select">
+            <option value="Workout A" {% if exercise.label == 'Workout A' %}selected{% endif %}>Workout A</option>
+            <option value="Workout B" {% if exercise.label == 'Workout B' %}selected{% endif %}>Workout B</option>
+            <option value="Supplemental" {% if exercise.label == 'Supplemental' %}selected{% endif %}>Supplemental</option>
+          </select>
+        </div>
+        
+        <div>
+          <label style="display:block;font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:10px;letter-spacing:-0.2px">Exercise Type</label>
+          <select name="exercise_type" class="form-select">
+            <option value="upper" {% if exercise.exercise_type == 'upper' %}selected{% endif %}>Upper Body (+1kg / +2kg for 10+ reps)</option>
+            <option value="legs" {% if exercise.exercise_type == 'legs' %}selected{% endif %}>Legs (+2kg / +4kg for 10+ reps)</option>
+          </select>
+        </div>
+        
+        <div>
+          <label style="display:block;font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:10px;letter-spacing:-0.2px">Target Reps</label>
+          <input name="target_reps" 
+                 type="number" 
+                 class="form-control" 
+                 value="{{ exercise.target_reps }}" 
+                 min="1" 
+                 max="100"
+                 required>
+          <small style="display:block;margin-top:6px;color:var(--text-secondary);font-size:0.8rem">Number of reps per set</small>
+        </div>
+        
+        <div style="display:flex;gap:12px;margin-top:8px">
+          <a href="{{ url_for('exercise_detail', exercise_id=exercise_id) }}" 
+             class="btn btn-outline-secondary"
+             style="flex:1;padding:14px;text-align:center;text-decoration:none;font-weight:600;border-radius:14px">
+            Cancel
+          </a>
+          <button class="btn btn-success" type="submit" style="flex:1;padding:14px;font-weight:700;border-radius:14px">
+            Save Changes
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+{% endblock %}

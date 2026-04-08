@@ -1,0 +1,346 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div style="margin-bottom:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h3 style="font-size:1.75rem;font-weight:800;margin:0;color:rgba(255,255,255,0.95);letter-spacing:-0.8px">My Exercises</h3>
+      <button id="toggleSelectMode" onclick="toggleSelectMode()" style="background:#ffffffad;border:none;color:var(--text-primary);padding:8px 16px;border-radius:8px;font-size:0.85rem;font-weight:600;cursor:pointer">
+        Select
+      </button>
+    </div>
+  </div>
+
+  <!-- Filter Pills -->
+  <div class="filter-pills">
+    <a href="{{ url_for('index', filter='all') }}" 
+       class="filter-pill {% if current_filter == 'all' %}active{% endif %}">
+      All
+    </a>
+    <a href="{{ url_for('index', filter='Workout A') }}" 
+       class="filter-pill {% if current_filter == 'Workout A' %}active active-blue{% endif %}">
+      Workout A
+    </a>
+    <a href="{{ url_for('index', filter='Workout B') }}" 
+       class="filter-pill {% if current_filter == 'Workout B' %}active active-red{% endif %}">
+      Workout B
+    </a>
+    <a href="{{ url_for('index', filter='Supplemental') }}" 
+       class="filter-pill {% if current_filter == 'Supplemental' %}active active-gray{% endif %}">
+      Supplemental
+    </a>
+  </div>
+
+  <!-- Floating Action Button -->
+  <button class="fab" onclick="document.getElementById('addExerciseModal').style.display='flex'" aria-label="Add new exercise">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"></line>
+      <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+  </button>
+
+  <!-- Add Exercise Modal -->
+  <div id="addExerciseModal" class="modal-overlay" onclick="if(event.target===this) this.style.display='none'">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h4>Add Exercise</h4>
+        <button class="modal-close" onclick="document.getElementById('addExerciseModal').style.display='none'" aria-label="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <form method="post" action="{{ url_for('web_add_exercise') }}" style="display:flex;flex-direction:column;gap:20px">
+        <div>
+          <label style="display:block;font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:10px;letter-spacing:-0.2px">Exercise Name</label>
+          <input name="name" 
+                 class="form-control" 
+                 placeholder="e.g., Bench Press" 
+                 required
+                 autofocus>
+        </div>
+        
+        <div>
+          <label style="display:block;font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:10px;letter-spacing:-0.2px">Workout Label</label>
+          <select name="label" class="form-select">
+            <option value="Workout A">Workout A</option>
+            <option value="Workout B">Workout B</option>
+            <option value="Supplemental" selected>Supplemental</option>
+          </select>
+        </div>
+        
+        <div>
+          <label style="display:block;font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:10px;letter-spacing:-0.2px">Exercise Type</label>
+          <select name="exercise_type" class="form-select">
+            <option value="upper" selected>Upper Body (+1kg / +2kg for 10+ reps)</option>
+            <option value="legs">Legs (+2kg / +4kg for 10+ reps)</option>
+          </select>
+        </div>
+        
+        <button class="btn btn-success" type="submit" style="margin-top:8px">
+          Add Exercise
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Bulk Delete Confirmation Modal -->
+  <div id="bulkDeleteConfirmModal" class="modal-overlay" onclick="if(event.target===this) closeBulkDeleteModal()">
+    <div class="modal-content">
+      <div class="modal-header" style="border-bottom:2px solid rgba(231,76,60,0.2)">
+        <h4 style="color:var(--danger)">⚠️ Confirm Deletion</h4>
+        <button class="modal-close" onclick="closeBulkDeleteModal()" aria-label="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div style="padding:24px">
+        <p style="font-size:1.05rem;color:var(--text-primary);margin-bottom:16px;line-height:1.6">
+          Are you sure you want to delete <strong id="deleteCountText">0</strong> exercise(s)?
+        </p>
+        <p style="font-size:0.95rem;color:var(--text-secondary);margin-bottom:0;line-height:1.5">
+          This will also permanently delete all workout history for these exercises. This action cannot be undone.
+        </p>
+      </div>
+      <div style="display:flex;gap:12px;padding:0 24px 24px 24px">
+        <button onclick="closeBulkDeleteModal()" class="btn btn-outline-secondary" style="flex:1;padding:14px">
+          Cancel
+        </button>
+        <button onclick="executeBulkDelete()" class="btn" style="flex:1;padding:14px;background:var(--danger);color:white;font-weight:700">
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exercise List -->
+  {% if exercises %}
+    <!-- Bulk Delete Action Bar (hidden by default) -->
+    <div id="bulkDeleteBar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:linear-gradient(135deg, var(--danger) 0%, #c0392b 100%);padding:16px;box-shadow:0 -4px 12px rgba(0,0,0,0.3);z-index:50;padding-bottom:max(16px, env(safe-area-inset-bottom))">
+      <div style="display:flex;gap:12px;align-items:center">
+        <button onclick="cancelSelectMode()" style="background:#ffffffad;border:none;color:var(--text-primary);padding:14px 20px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;flex:1">
+          Cancel
+        </button>
+        <button onclick="confirmBulkDelete()" style="background:white;border:none;color:var(--danger);padding:14px 20px;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;flex:2">
+          Delete <span id="selectedCount">0</span> Exercise(s)
+        </button>
+      </div>
+    </div>
+
+    <div id="exerciseList" style="display:flex;flex-direction:column;gap:14px;margin-bottom:80px">
+      {% for ex in exercises %}
+        <div class="exercise-card-wrapper" data-exercise-id="{{ ex.id }}" style="position:relative;animation:fadeInUp 0.4s ease-out forwards;animation-delay:{{ loop.index0 * 0.05 }}s;opacity:0">
+          <!-- Checkbox (hidden by default) -->
+          <div class="exercise-checkbox" style="display:none;position:absolute;top:18px;left:18px;z-index:10">
+            <input type="checkbox" 
+                   id="check-{{ ex.id }}" 
+                   class="exercise-select-checkbox"
+                   onchange="updateSelectedCount()"
+                   style="width:24px;height:24px;cursor:pointer;accent-color:var(--danger)">
+          </div>
+
+          <a href="{{ url_for('exercise_detail', exercise_id=ex.id) }}" 
+             class="card-custom exercise-card" 
+             style="display:block;padding:18px;text-decoration:none;color:inherit">
+            
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:{% if ex.last %}14{% else %}0{% endif %}px">
+              <div style="flex:1">
+                <h4 class="exercise-title" style="font-weight:800;font-size:1.15rem;margin:0 0 8px 0;color:var(--text-primary);letter-spacing:-0.3px">{{ ex.name }}</h4>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span class="label-badge {% if ex.label == 'Workout A' %}label-badge-a{% elif ex.label == 'Workout B' %}label-badge-b{% else %}label-badge-add{% endif %}">{{ ex.label }}</span>
+                  <span style="font-size:0.85rem;color:var(--text-secondary);font-weight:600">{{ ex.target_reps }} reps</span>
+                </div>
+              </div>
+            </div>
+          
+          {% if ex.last %}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:14px;border-top:2px solid var(--bg-primary)">
+              <div style="background:linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.08) 100%);padding:14px;border-radius:12px;text-align:center;border:2px solid rgba(102,126,234,0.15)">
+                <div style="font-size:0.7rem;color:var(--text-tertiary);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.8px;font-weight:800">Last</div>
+                <div style="font-size:1.5rem;font-weight:800;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:2px">{{ ex.last.weight }}</div>
+                <div style="font-size:0.65rem;color:var(--text-tertiary);font-weight:600">{{ ex.last.date|format_date }}</div>
+              </div>
+              <div style="background:linear-gradient(135deg, rgba(0,184,148,0.08) 0%, rgba(0,168,133,0.08) 100%);padding:14px;border-radius:12px;text-align:center;border:2px solid rgba(0,184,148,0.15)">
+                <div style="font-size:0.7rem;color:var(--text-tertiary);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.8px;font-weight:800">Next</div>
+                <div style="font-size:1.5rem;font-weight:800;background:linear-gradient(135deg, #00b894 0%, #00a885 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:2px">{{ ex.last.next_weight }}</div>
+                <div style="font-size:0.65rem;color:var(--text-tertiary);font-weight:600">kg</div>
+              </div>
+            </div>
+          {% else %}
+            <div style="padding-top:14px;border-top:2px solid var(--bg-primary)">
+              <div style="padding:12px;background:linear-gradient(135deg, rgba(243,156,18,0.08) 0%, rgba(241,196,15,0.08) 100%);border-radius:12px;text-align:center;border:2px solid rgba(243,156,18,0.15)">
+                <span style="font-size:0.9rem;background:linear-gradient(135deg, #f39c12 0%, #f1c40f 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-weight:800">No workouts yet — Start today!</span>
+              </div>
+            </div>
+          {% endif %}
+        </a>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card-custom" style="text-align:center;padding:80px 24px">
+      <div style="font-size:3rem;margin-bottom:16px;opacity:0.2">💪</div>
+      <div style="font-size:1.5rem;margin-bottom:12px;font-weight:800;color:var(--text-primary);letter-spacing:-0.5px">No Exercises Yet</div>
+      <p style="color:var(--text-secondary);font-size:1rem;font-weight:500">Tap the + button to add your first exercise</p>
+    </div>
+  {% endif %}
+
+  <style>
+    /* Fade in animation for exercise cards */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Add active state for touch feedback */
+    a[href*="exercise_detail"]:active {
+      transform: translateY(0) scale(0.97);
+    }
+
+    /* Selection mode styles */
+    .select-mode .exercise-checkbox {
+      display: block !important;
+    }
+
+    .select-mode .exercise-card {
+      padding-left: 60px !important;
+    }
+
+    .select-mode .exercise-card:not(.selected) {
+      opacity: 1;
+    }
+
+    .select-mode .exercise-card.selected {
+      background: linear-gradient(135deg, rgba(231,76,60,0.1) 0%, rgba(192,57,43,0.1) 100%) !important;
+      border: 2px solid var(--danger) !important;
+    }
+  </style>
+
+  <script>
+    let selectMode = false;
+
+    function toggleSelectMode() {
+      selectMode = !selectMode;
+      const exerciseList = document.getElementById('exerciseList');
+      const toggleBtn = document.getElementById('toggleSelectMode');
+      const bulkDeleteBar = document.getElementById('bulkDeleteBar');
+      
+      if (selectMode) {
+        exerciseList.classList.add('select-mode');
+        toggleBtn.textContent = 'Cancel';
+        toggleBtn.style.background = '#ffffffad';
+        
+        // Disable card links in select mode
+        document.querySelectorAll('.exercise-card').forEach(card => {
+          card.style.pointerEvents = 'none';
+        });
+      } else {
+        cancelSelectMode();
+      }
+    }
+
+    function cancelSelectMode() {
+      selectMode = false;
+      const exerciseList = document.getElementById('exerciseList');
+      const toggleBtn = document.getElementById('toggleSelectMode');
+      const bulkDeleteBar = document.getElementById('bulkDeleteBar');
+      
+      exerciseList.classList.remove('select-mode');
+      toggleBtn.textContent = 'Select';
+      toggleBtn.style.background = '#ffffffad';
+      bulkDeleteBar.style.display = 'none';
+      
+      // Re-enable card links
+      document.querySelectorAll('.exercise-card').forEach(card => {
+        card.style.pointerEvents = 'auto';
+        card.classList.remove('selected');
+      });
+      
+      // Uncheck all checkboxes
+      document.querySelectorAll('.exercise-select-checkbox').forEach(cb => {
+        cb.checked = false;
+      });
+    }
+
+    function updateSelectedCount() {
+      const checkboxes = document.querySelectorAll('.exercise-select-checkbox:checked');
+      const count = checkboxes.length;
+      const bulkDeleteBar = document.getElementById('bulkDeleteBar');
+      const selectedCountEl = document.getElementById('selectedCount');
+      
+      selectedCountEl.textContent = count;
+      
+      if (count > 0) {
+        bulkDeleteBar.style.display = 'block';
+      } else {
+        bulkDeleteBar.style.display = 'none';
+      }
+      
+      // Update card visual state
+      document.querySelectorAll('.exercise-card-wrapper').forEach(wrapper => {
+        const checkbox = wrapper.querySelector('.exercise-select-checkbox');
+        const card = wrapper.querySelector('.exercise-card');
+        
+        if (checkbox && checkbox.checked) {
+          card.classList.add('selected');
+        } else {
+          card.classList.remove('selected');
+        }
+      });
+    }
+
+    function confirmBulkDelete() {
+      const checkboxes = document.querySelectorAll('.exercise-select-checkbox:checked');
+      const exerciseIds = Array.from(checkboxes).map(cb => cb.id.replace('check-', ''));
+      
+      if (exerciseIds.length === 0) {
+        return;
+      }
+      
+      // Show custom modal
+      document.getElementById('deleteCountText').textContent = exerciseIds.length;
+      document.getElementById('bulkDeleteConfirmModal').style.display = 'flex';
+      
+      // Store exercise IDs for later
+      window.pendingDeleteIds = exerciseIds;
+    }
+
+    function closeBulkDeleteModal() {
+      document.getElementById('bulkDeleteConfirmModal').style.display = 'none';
+      window.pendingDeleteIds = null;
+    }
+
+    function executeBulkDelete() {
+      const exerciseIds = window.pendingDeleteIds;
+      
+      if (!exerciseIds || exerciseIds.length === 0) {
+        return;
+      }
+      
+      // Create form and submit
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '{{ url_for("bulk_delete_exercises") }}';
+      
+      exerciseIds.forEach(id => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'exercise_ids';
+        input.value = id;
+        form.appendChild(input);
+      });
+      
+      document.body.appendChild(form);
+      form.submit();
+    }
+  </script>
+
+{% endblock %}
